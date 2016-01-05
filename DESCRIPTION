@@ -1,8 +1,10 @@
 Package: sockets
-Title: What the Package Does (one line, title case)
-Version: 0.0.0.9000
-Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Title: Simple alternative socket 'connection'
+Version: 0.0.1
+Authors@R: person("Martin", "Morgan",
+    email = "martin.morgan@roswellpark.org",
+    role = c("aut", "cre"))
+Description: This package is a simple implementation of sockets using
+    R's connections API.
 Depends: R (>= 3.3.0)
-License: What license is it under?
-LazyData: true
+License: Artistic-2.0
