@@ -1,1 +1,4 @@
+useDynLib(sockets, .registration=TRUE)
+
 exportPattern("^[^\\.]")
+S3method(print, sockets)
