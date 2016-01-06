@@ -22,16 +22,18 @@
 
 
 static SEXP SOCKETS_SERVER_TAG = NULL;
+static int BACKLOG = 0;
 
 struct sockets_ptr {
-    char *hostname;
-    int port;
-    short fd;
+    char *hostname[2];          /* server, client */
+    int port[2];
+    short fd[2];
 };
 
-SEXP sockets_init()
+SEXP sockets_init(SEXP sbacklog)
 {
     SOCKETS_SERVER_TAG = install("sockets_server");
+    BACKLOG = INTEGER(sbacklog)[0];
     return R_NilValue;
 }
 
@@ -65,10 +67,16 @@ static struct sockets_ptr * _sockets_close(SEXP sext)
     if (NULL == p)
         return NULL;
 
+    if ((0 != p->fd[0]) && (close(p->fd[0]) != 0)) {
+        if (0 !=  p->fd[1])
+            (void) close(p->fd[1]);
+        Rf_error("could not close 'server' socket:\n  %s", strerror(errno));
+    }
 
-    if ((0 != p->fd) && (close(p->fd) != 0))
-        Rf_error("could not close socket:\n  %s", strerror(errno));
-    p->fd = 0;
+    if ((0 != p->fd[1]) && (close(p->fd[1]) != 0))
+        Rf_error("could not close 'client' socket:\n  %s", strerror(errno));
+
+    p->fd[0] = p->fd[1] = 0;
     return p;
 }
 
@@ -77,7 +85,9 @@ static void _sockets_finalizer(SEXP sext)
     struct sockets_ptr *p = _sockets_close(sext);
     if (NULL == p)
         return;
-    Free(p->hostname);
+
+    for (int i = 0; i < 2; ++i)
+        Free(p->hostname[i]);
     Free(p);
     R_SetExternalPtrAddr(sext, NULL);
 }
@@ -90,23 +100,40 @@ SEXP is_sockets(SEXP sext)
 SEXP is_open(SEXP sext)
 {
     (void) _check_sockets(sext, TRUE);
-    Rboolean test = (NULL != R_ExternalPtrAddr(sext)) &&
-        (0 != ((struct sockets_ptr *) R_ExternalPtrAddr(sext))->fd);
-    return Rf_ScalarLogical(test);
+    SEXP ret = PROTECT(Rf_allocVector(LGLSXP, 2));
+    if (NULL != R_ExternalPtrAddr(sext)) {
+        struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
+        for (int i = 0; i < 2; ++i)
+            LOGICAL(ret)[i] = (0 != p->fd[i]);
+    }
+    UNPROTECT(1);
+    return ret;
 }
 
 SEXP socket_hostname(SEXP sext)
 {
     _check_sockets(sext, TRUE);
     struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
-    return Rf_ScalarString(mkChar(p->hostname));
+    SEXP ret = PROTECT(Rf_allocVector(STRSXP, 2));
+    for (int i = 0; i < 2; ++i)
+        if (NULL != p->hostname[i])
+            SET_STRING_ELT(ret, i, mkChar(p->hostname[i]));
+        else SET_STRING_ELT(ret, i, NA_STRING);
+    UNPROTECT(1);
+    return ret;
 }
 
 SEXP socket_port(SEXP sext)
 {
     _check_sockets(sext, TRUE);
     struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
-    return Rf_ScalarInteger(p->port);
+    SEXP ret = PROTECT(Rf_allocVector(INTSXP, 2));
+    for (int i = 0; i < 2; ++i)
+        if (0 != p->port[i])
+            INTEGER(ret)[i] = p->port[i];
+        else INTEGER(ret)[i] = NA_INTEGER;
+    UNPROTECT(1);
+    return ret;
 }
 
 /* server */
@@ -121,34 +148,61 @@ SEXP server_bind(SEXP shost, SEXP sport)
     if (NULL == hp)
         Rf_error("invalid hostname '%s'", hostname);
 
-    struct sockaddr_in saddr_in;
-    socklen_t saddr_len = sizeof(struct sockaddr_in); // length of address
-    int server_sock;            // socket file descriptor
+    struct sockaddr_in server;
+    socklen_t len = sizeof(struct sockaddr_in);
+    int server_fd;
 
     /* set up the address information */
-    saddr_in.sin_family = AF_INET;
-    memcpy((char *) &saddr_in.sin_addr, hp->h_addr_list[0], hp->h_length);
-    saddr_in.sin_port = htons(port);
+    server.sin_family = AF_INET;
+    memcpy((char *) &server.sin_addr, hp->h_addr_list[0], hp->h_length);
+    server.sin_port = htons(port);
 
     /* open a socket */
-    if ((server_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         Rf_error("could not create socket:\n  %s", strerror(errno));
 
     /* bind the socket */
-    if (bind(server_sock, (struct sockaddr *) &saddr_in, saddr_len) < 0)
+    if (bind(server_fd, (struct sockaddr *) &server, len) < 0)
         Rf_error("could not bind socket:\n  %s", strerror(errno));
 
     /* R external pointer */
     struct sockets_ptr *p = Calloc(1, struct sockets_ptr);
-    p->hostname = Calloc(strlen(hostname) + 1, char);
-    memcpy(p->hostname, hostname, strlen(hostname));
-    p->port = port;
-    p->fd = server_sock;
+    p->hostname[0] = Calloc(strlen(hostname) + 1, char);
+    memcpy(p->hostname[0], hostname, strlen(hostname));
+    p->port[0] = port;
+    p->fd[0] = server_fd;
 
     SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETS_SERVER_TAG, NULL));
     R_RegisterCFinalizerEx(sext, _sockets_finalizer, TRUE);
 
     UNPROTECT(1);
+    return sext;
+}
+
+SEXP server_accept(SEXP sext)
+{
+    (void) _check_sockets(sext, TRUE);
+    struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
+    
+    if (listen(p->fd[0], BACKLOG) < 0)
+        Rf_error("could not 'listen' on socket %s:%d:\n  %s",
+                 p->hostname[0], p->port[0], strerror(errno));
+    
+    struct sockaddr_in client;
+    socklen_t len = sizeof(struct sockaddr_in);
+    int client_fd;
+
+    client_fd = accept(p->fd[0], (struct sockaddr *) &client, &len);
+    if (client_fd < 0)
+        Rf_error("could not 'accept' on socket %s:%d:\n  %s",
+                 p->hostname[0], p->port[0], strerror(errno));
+
+    const char *client_hostname = inet_ntoa(client.sin_addr);
+    p->hostname[1] = Calloc(strlen(client_hostname) + 1, char);
+    memcpy(p->hostname[1], client_hostname, strlen(client_hostname));
+    p->port[1] = ntohs(client.sin_port);
+    p->fd[1] = client_fd;
+
     return sext;
 }
 

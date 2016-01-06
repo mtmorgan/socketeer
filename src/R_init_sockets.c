@@ -3,7 +3,7 @@
 #include "sockets.h"
 
 static const R_CallMethodDef callMethods[] = {
-    {".sockets_init", (DL_FUNC) &sockets_init, 0},
+    {".sockets_init", (DL_FUNC) &sockets_init, 1},
 
     {".is_sockets", (DL_FUNC) &is_sockets, 1},
     {".is_open", (DL_FUNC) &is_open, 1},
@@ -14,6 +14,7 @@ static const R_CallMethodDef callMethods[] = {
     {".client_disconnect", (DL_FUNC) &client_disconnect, 0},
 
     {".server_bind", (DL_FUNC) &server_bind, 2},
+    {".server_accept", (DL_FUNC) &server_accept, 1},
     {".server_close", (DL_FUNC) &server_close, 1},
 
     {NULL, NULL, 0}

@@ -1,9 +1,18 @@
 print.sockets <- function(x, ...)
 {
-    cat(class(x)[length(class(x)) - 1L], " socket on ",
-        socket_hostname(x), ":", socket_port(x),
-        ". is_open: ", is_open(x), "\n",
-        sep="")
+    hostnames <- socket_hostname(x)
+    ports <- socket_port(x)
+    open <- is_open(x)
+    cat("socket",
+        "\n  server: ",
+        if (open[1]) {
+            sprintf("%s:%d", hostnames[1], ports[1])
+        } else "NA",
+        "\n  client: ",
+        if (open[2]) {
+            sprintf("%s:%d", hostnames[2], ports[2])
+        } else "NA",
+        "\n", sep="")
 }
 
 is_socket <- function(socket)
@@ -33,6 +42,9 @@ server_bind <- function(host, port)
     class(sock) <- c("server", "sockets")
     sock
 }
+
+server_accept <- function(server)
+    .Call(.server_accept, server)
 
 server_close <- function(server)
     invisible(.Call(.server_close, server))

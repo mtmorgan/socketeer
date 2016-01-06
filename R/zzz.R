@@ -1,3 +1,3 @@
 .onLoad <- function(libname, pkgname) {
-    .Call(.sockets_init)
+    .Call(.sockets_init, 5L)
 }
