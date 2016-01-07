@@ -20,8 +20,8 @@ test_that("socket_hostname(), socket_port() check input", {
 
 test_that("socket_hostname(), socket_port() works", {
     sock <- server_bind("localhost", 11003L)
-    expect_equal(socket_hostname(sock), c("localhost", NA))
-    expect_equal(socket_port(sock), c(11003L, NA))
+    expect_equal(socket_hostname(sock), "localhost")
+    expect_equal(socket_port(sock), 11003L)
 })
 
 ##
@@ -56,9 +56,9 @@ context("server_close")
 
 test_that("server_close works", {
     sock <- server_bind("localhost", 11004L)
-    expect_equal(is_open(sock), c(TRUE, FALSE))
+    expect_equal(is_open(sock), TRUE)
     expect_equal(server_close(sock), TRUE)
-    expect_equal(is_open(sock), c(FALSE, FALSE))
+    expect_equal(is_open(sock), FALSE)
 })
 
 test_that("closed sockets can be re-used", {
@@ -66,7 +66,7 @@ test_that("closed sockets can be re-used", {
     server_close(sock)
 
     sock <- server_bind("localhost", 11005L)
-    expect_equal(is_open(sock), c(TRUE, FALSE))
+    expect_equal(is_open(sock), TRUE)
     expect_equal(server_close(sock), TRUE)
-    expect_equal(is_open(sock), c(FALSE, FALSE))
+    expect_equal(is_open(sock), FALSE)
 })

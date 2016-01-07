@@ -10,11 +10,12 @@ static const R_CallMethodDef callMethods[] = {
     {".socket_hostname", (DL_FUNC) &socket_hostname, 1},
     {".socket_port", (DL_FUNC) &socket_port, 1},
 
-    {".client_connect", (DL_FUNC) &client_connect, 0},
+    {".client_connect", (DL_FUNC) &client_connect, 2},
     {".client_disconnect", (DL_FUNC) &client_disconnect, 0},
 
     {".server_bind", (DL_FUNC) &server_bind, 2},
-    {".server_accept", (DL_FUNC) &server_accept, 1},
+    {".server_select", (DL_FUNC) &server_select, 2},
+    {".server_send", (DL_FUNC) &server_send, 2},
     {".server_close", (DL_FUNC) &server_close, 1},
 
     {NULL, NULL, 0}
