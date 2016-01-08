@@ -59,12 +59,21 @@ static Rboolean _check_sockets(SEXP sext, Rboolean fail)
     return test;
 }
 
+struct sockets_ptr * _sockets_ptr(SEXP sext, Rboolean fail)
+{
+    struct sockets_ptr * p = R_ExternalPtrAddr(sext);
+    if ((NULL == p) && fail)
+        Rf_error("'socket' is not valid (closed?)");
+
+    return p;
+}
+
 static struct sockets_ptr * _sockets_close(SEXP sext)
 {
-    if (NULL == R_ExternalPtrAddr(sext))
+    if (!_check_sockets(sext, FALSE))
         return NULL;
 
-    struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
+    struct sockets_ptr *p = _sockets_ptr(sext, FALSE);
     if (NULL == p)
         return NULL;
 
@@ -78,6 +87,9 @@ static struct sockets_ptr * _sockets_close(SEXP sext)
 
 static void _sockets_finalizer(SEXP sext)
 {
+    if (!_check_sockets(sext, FALSE))
+        return NULL;
+
     struct sockets_ptr *p = _sockets_close(sext);
     if (NULL == p)
         return;
@@ -95,26 +107,21 @@ SEXP is_sockets(SEXP sext)
 SEXP is_open(SEXP sext)
 {
     (void) _check_sockets(sext, TRUE);
-    SEXP ret = PROTECT(Rf_allocVector(LGLSXP, 1));
-    if (NULL != R_ExternalPtrAddr(sext)) {
-        struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
-        LOGICAL(ret)[0] = (0 != p->fd);
-    }
-    UNPROTECT(1);
-    return ret;
+    struct sockets_ptr *p = _sockets_ptr(sext, FALSE);
+    return Rf_ScalarLogical((NULL != p) && (0 != p->fd));
 }
 
 SEXP socket_hostname(SEXP sext)
 {
-    _check_sockets(sext, TRUE);
-    struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
+    (void) _check_sockets(sext, TRUE);
+    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
     return Rf_ScalarString(mkChar(p->hostname));
 }
 
 SEXP socket_port(SEXP sext)
 {
-    _check_sockets(sext, TRUE);
-    struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
+    (void) _check_sockets(sext, TRUE);
+    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
     return Rf_ScalarInteger(p->port);
 }
 
@@ -149,7 +156,7 @@ SEXP client_connect(SEXP shost, SEXP sport)
 
         if (connect(fd, a->ai_addr, a->ai_addrlen) != -1) /* CONNECT */
             break;
-        
+
         close(fd);
     }
 
@@ -208,10 +215,10 @@ SEXP server_bind(SEXP shost, SEXP sport)
 
         if (bind(fd, a->ai_addr, a->ai_addrlen) != -1) /* BIND */
             break;
-        
+
         close(fd);
     }
-    
+
     if (a == NULL)              /* No address succeeded */
         Rf_error("could not connect to address %s:%s", hostname, service);
     freeaddrinfo(addr);
@@ -237,15 +244,25 @@ SEXP server_bind(SEXP shost, SEXP sport)
     return sext;
 }
 
+SEXP server_listen(SEXP sext, SEXP backlog)
+{
+    (void) _check_integer_scalar_non_negative(backlog);
+    (void) _check_sockets(sext, TRUE);
+    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
+
+    if (listen(p->fd, backlog) < 0)
+        Rf_error("could not 'listen' on socket %s:%d:\n  %s",
+                 hostname, port, strerror(errno));
+}
+
 SEXP server_select(SEXP sext, SEXP stimeout)
 {
+    (void) _check_integer_scalar_non_negative(stimeout, "timeout");
     (void) _check_sockets(sext, TRUE);
-    _check_integer_scalar_non_negative(stimeout, "timeout");
     if (!LOGICAL(is_open(sext))[0])
         Rf_error("'server' socket is not open");
 
-    struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
-
+    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
     fd_set read_fds = p->active_fds;
     struct timeval tv;
     int n = 0;
@@ -307,8 +324,7 @@ SEXP server_select(SEXP sext, SEXP stimeout)
 SEXP server_send(SEXP sext, SEXP stext)
 {
     (void) _check_sockets(sext, TRUE);
-
-    struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
+    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
     int n = 0;
 
     for (int i = 0; i < LENGTH(stext); ++i) {
@@ -324,11 +340,10 @@ SEXP server_send(SEXP sext, SEXP stext)
 
 SEXP server_recv(SEXP sext, SEXP scheck_user_interrupt)
 {
-    (void) _check_sockets(sext, TRUE);
-    _check_integer_scalar_non_negative(scheck_user_interrupt,
+    (void) _check_integer_scalar_non_negative(scheck_user_interrupt,
                                        "check_user_interrupt");
-
-    struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
+    (void) _check_sockets(sext, TRUE);
+    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
     char receive_buf[BUF_SIZE];
     ssize_t n = 0;
 
