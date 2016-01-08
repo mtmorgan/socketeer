@@ -20,9 +20,7 @@
 #  include <netdb.h>
 #endif
 
-
-static SEXP SOCKETS_SERVER_TAG = NULL;
-static SEXP SOCKETS_CLIENT_TAG = NULL;
+static SEXP SOCKETS_TAG = NULL;
 static int BACKLOG = 0;
 static int BUF_SIZE = 32767;
 
@@ -35,8 +33,7 @@ struct sockets_ptr {
 
 SEXP sockets_init(SEXP sbacklog)
 {
-    SOCKETS_SERVER_TAG = install("sockets_server");
-    SOCKETS_CLIENT_TAG = install("sockets_client");
+    SOCKETS_TAG = install("sockets");
     BACKLOG = INTEGER(sbacklog)[0];
     return R_NilValue;
 }
@@ -56,8 +53,7 @@ void _check_integer_scalar_non_negative(SEXP x, const char *name)
 static Rboolean _check_sockets(SEXP sext, Rboolean fail)
 {
     Rboolean test = (EXTPTRSXP == TYPEOF(sext)) &&
-        ((SOCKETS_SERVER_TAG == R_ExternalPtrTag(sext)) |
-         (SOCKETS_CLIENT_TAG == R_ExternalPtrTag(sext)));
+        (SOCKETS_TAG == R_ExternalPtrTag(sext));
     if (fail && !test)
         Rf_error("'socket' must be a sockets instance");
     return test;
@@ -169,7 +165,7 @@ SEXP client_connect(SEXP shost, SEXP sport)
     p->port = port;
     p->fd = fd;
 
-    SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETS_CLIENT_TAG, NULL));
+    SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETS_TAG, NULL));
     R_RegisterCFinalizerEx(sext, _sockets_finalizer, TRUE);
 
     UNPROTECT(1);
@@ -193,10 +189,10 @@ SEXP server_bind(SEXP shost, SEXP sport)
     int errcode = 0, fd = 0;
 
     memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_INET;    /* Allow IPv4 */
+    hints.ai_family = AF_INET;       /* Allow IPv4 */
     hints.ai_socktype = SOCK_STREAM; /* Stream socket */
-    hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
-    hints.ai_protocol = 0;          /* Any protocol */
+    hints.ai_flags = AI_PASSIVE;     /* For wildcard IP address */
+    hints.ai_protocol = 0;           /* Any protocol */
 
     errcode = getaddrinfo(hostname, service, &hints, &addr);
     if (errcode != 0) {
@@ -234,7 +230,7 @@ SEXP server_bind(SEXP shost, SEXP sport)
     FD_ZERO(&p->active_fds);
     FD_SET(p->fd, &p->active_fds);
 
-    SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETS_SERVER_TAG, NULL));
+    SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETS_TAG, NULL));
     R_RegisterCFinalizerEx(sext, _sockets_finalizer, TRUE);
 
     UNPROTECT(1);
@@ -289,7 +285,7 @@ SEXP server_select(SEXP sext, SEXP stimeout)
         } else {                /* recv */
             ssize_t n = read(i, recv_buf, BUF_SIZE - 1);
 
-            if (n <= 0) {        /* recv close or error */
+            if (n <= 0) {       /* recv close or error */
                 if (close(i) != 0)
                     Rf_warning("'select' failed to close client:\n  %s",
                                strerror(errno));
@@ -318,7 +314,7 @@ SEXP server_send(SEXP sext, SEXP stext)
     for (int i = 0; i < LENGTH(stext); ++i) {
         const char *elt = CHAR(STRING_ELT(stext, i));
         const int elt_n = strlen(elt);
-        if (write(p->fd, elt, elt_n) < 0)
+        if (send(p->fd, elt, elt_n, 0) < 0)
             Rf_error("server 'send' element %d error:\n  %s", strerror(errno));
         n += elt_n;
     }
@@ -334,14 +330,14 @@ SEXP server_recv(SEXP sext, SEXP scheck_user_interrupt)
 
     struct sockets_ptr *p = (struct sockets_ptr *) R_ExternalPtrAddr(sext);
     char receive_buf[BUF_SIZE];
-    int n = 0;
+    ssize_t n = 0;
 
     struct timeval tv;
     tv.tv_sec = INTEGER(scheck_user_interrupt)[0];
     tv.tv_usec = 0;
 
     while (n == 0) {
-        if ((n = read(p->fd, receive_buf, BUF_SIZE - 1)) < 0)
+        if ((n = recv(p->fd, receive_buf, BUF_SIZE - 1, 0)) < 0)
             Rf_error("server 'recv' error:\n  %s", strerror(errno));
         receive_buf[n] = '\0';
     }
