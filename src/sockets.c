@@ -20,116 +20,81 @@
 #  include <netdb.h>
 #endif
 
-static SEXP SOCKETS_TAG = NULL;
-static int BACKLOG = 0;
+static SEXP SOCKETS_CLIENT_TAG = NULL;
+static SEXP SOCKETS_SERVER_TAG = NULL;
+static SEXP SOCKETS_CLIENTOF_TAG = NULL;
 static int BUF_SIZE = 32767;
 
-struct sockets_ptr {
-    char *hostname;
-    int port;
+struct client {
     short fd;
-    fd_set active_fds;          /* server only */
 };
 
-SEXP sockets_init(SEXP sbacklog)
+SEXP sockets_init()
 {
-    SOCKETS_TAG = install("sockets");
-    BACKLOG = INTEGER(sbacklog)[0];
+    SOCKETS_CLIENT_TAG = install("sockets_client");
+    SOCKETS_SERVER_TAG = install("sockets_server");
+    SOCKETS_CLIENTOF_TAG = install("sockets_clientof");
     return R_NilValue;
 }
 
 /* utilities */
 
-void _check_integer_scalar_non_negative(SEXP x, const char *name)
+void _is_raw(SEXP sraw)
+{
+    if (TYPEOF(sraw) != RAWSXP)
+        Rf_error("'raw' must be a raw() vector");
+}
+
+void _is_integer_scalar_non_negative(SEXP x, const char *name)
 {
     if ((TYPEOF(x) != INTSXP) || (LENGTH(x) != 1) ||
         (ISNA(INTEGER(x)[0])) || INTEGER(x)[0] < 0)
         Rf_error("'%s' must be non-negative integer(1)", name);
 }
 
+/* client */
 
-/* socket */
-
-static Rboolean _check_sockets(SEXP sext, Rboolean fail)
+Rboolean _is_client(SEXP sext, Rboolean fail)
 {
     Rboolean test = (EXTPTRSXP == TYPEOF(sext)) &&
-        (SOCKETS_TAG == R_ExternalPtrTag(sext));
+        (SOCKETS_CLIENT_TAG == R_ExternalPtrTag(sext));
     if (fail && !test)
-        Rf_error("'socket' must be a sockets instance");
+        Rf_error("not a 'client' instance");
     return test;
 }
 
-struct sockets_ptr * _sockets_ptr(SEXP sext, Rboolean fail)
+struct client * _client_ptr(SEXP sclient, Rboolean fail)
 {
-    struct sockets_ptr * p = R_ExternalPtrAddr(sext);
+    struct client *p = R_ExternalPtrAddr(sclient);
     if ((NULL == p) && fail)
-        Rf_error("'socket' is not valid (closed?)");
-
+        Rf_error("'client' is not valid (closed?)");
     return p;
 }
 
-static struct sockets_ptr * _sockets_close(SEXP sext)
+struct client *_client_close(SEXP sclient)
 {
-    if (!_check_sockets(sext, FALSE))
-        return NULL;
-
-    struct sockets_ptr *p = _sockets_ptr(sext, FALSE);
-    if (NULL == p)
-        return NULL;
-
-    if ((0 != p->fd) && (close(p->fd) != 0))
-        Rf_error("could not close 'server' socket %s:%d:\n  %s",
-                 p->hostname, p->port, strerror(errno));
-
-    p->fd = 0;
+    struct client *p = _client_ptr(sclient, TRUE);
+    close(p->fd);
+    p-> fd = 0;
     return p;
 }
 
-static void _sockets_finalizer(SEXP sext)
+void _client_finalizer(SEXP sclient)
 {
-    if (!_check_sockets(sext, FALSE))
-        return NULL;
+    if (!_is_client(sclient, FALSE))
+        return;
 
-    struct sockets_ptr *p = _sockets_close(sext);
+    struct client *p = _client_close(sclient);
     if (NULL == p)
         return;
 
-    Free(p->hostname);
     Free(p);
-    R_SetExternalPtrAddr(sext, NULL);
+    R_SetExternalPtrAddr(sclient, NULL);
 }
 
-SEXP is_sockets(SEXP sext)
+SEXP client(SEXP shostname, SEXP sport)
 {
-    return Rf_ScalarLogical(_check_sockets(sext, FALSE));
-}
-
-SEXP is_open(SEXP sext)
-{
-    (void) _check_sockets(sext, TRUE);
-    struct sockets_ptr *p = _sockets_ptr(sext, FALSE);
-    return Rf_ScalarLogical((NULL != p) && (0 != p->fd));
-}
-
-SEXP socket_hostname(SEXP sext)
-{
-    (void) _check_sockets(sext, TRUE);
-    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
-    return Rf_ScalarString(mkChar(p->hostname));
-}
-
-SEXP socket_port(SEXP sext)
-{
-    (void) _check_sockets(sext, TRUE);
-    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
-    return Rf_ScalarInteger(p->port);
-}
-
-/* client */
-
-SEXP client_connect(SEXP shost, SEXP sport)
-{
-    const char *hostname = CHAR(Rf_asChar(shost));
+    const char *hostname = CHAR(Rf_asChar(shostname));
     const int port = Rf_asInteger(sport);
     SEXP sport1 = PROTECT(Rf_asChar(sport));
     const char *service = CHAR(sport1); /* port-as-character */
@@ -166,29 +131,147 @@ SEXP client_connect(SEXP shost, SEXP sport)
     UNPROTECT(1);
 
     /* R external pointer */
-    struct sockets_ptr *p = Calloc(1, struct sockets_ptr);
-    p->hostname = Calloc(strlen(hostname) + 1, char);
-    memcpy(p->hostname, hostname, strlen(hostname));
-    p->port = port;
+    struct client *p = Calloc(1, struct client);
     p->fd = fd;
-
-    SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETS_TAG, NULL));
-    R_RegisterCFinalizerEx(sext, _sockets_finalizer, TRUE);
+    SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETS_CLIENT_TAG, NULL));
+    R_RegisterCFinalizerEx(sext, _client_finalizer, TRUE);
 
     UNPROTECT(1);
     return sext;
 }
 
-SEXP client_disconnect()
+SEXP client_recv(SEXP sclient)
 {
+    (void) _is_client(sclient, TRUE);
+
     return R_NilValue;
+}
+
+SEXP client_send(SEXP sclient, SEXP sraw)
+{
+    (void) _is_client(sclient, TRUE);
+    (void) _is_raw(sraw);
+
+    return R_NilValue;
+}
+
+SEXP client_close(SEXP sclient)
+{
+    (void) _is_client(sclient, TRUE);
+
+    return R_NilValue;
+}
+
+/* clientof */
+
+struct clientof {
+    short fd;
+    struct sockaddr_in *addr;
+};
+
+static Rboolean _is_clientof(SEXP sext, Rboolean fail)
+{
+    Rboolean test = (EXTPTRSXP == TYPEOF(sext)) &&
+        (SOCKETS_CLIENTOF_TAG == R_ExternalPtrTag(sext));
+    if (fail && !test)
+        Rf_error("not a 'clientof' instance");
+    return test;
+}
+
+struct clientof *_clientof_ptr(SEXP sclient, Rboolean fail)
+{
+    struct clientof * p = R_ExternalPtrAddr(sclient);
+    if ((NULL == p) && fail)
+        Rf_error("'clientof' is not valid (closed?)");
+    return p;
+}
+
+struct clientof *_clientof_close(SEXP sclientof)
+{
+    struct clientof *p = _clientof_ptr(sclientof, TRUE);
+    close(p->fd);
+    p-> fd = 0;
+    return p;
+}
+
+void _clientof_finalizer(SEXP sclientof)
+{
+    if (!_is_clientof(sclientof, FALSE))
+        return;
+
+    struct clientof *p = _clientof_close(sclientof);
+    if (NULL == p)
+        return;
+
+    Free(p->addr);
+    Free(p);
+    R_SetExternalPtrAddr(sclientof, NULL);
+}
+
+struct clientof *_clientof(short fd, struct sockaddr_in *addr)
+{
+    struct clientof *p = Calloc(1, struct clientof);
+    p->fd = fd;
+    p->addr = addr;
+    return p;
 }
 
 /* server */
 
-SEXP server_bind(SEXP shost, SEXP sport)
+struct server {
+    short fd;
+    fd_set active_fds;
+};
+
+static Rboolean _is_server(SEXP sext, Rboolean fail)
 {
-    const char *hostname = CHAR(Rf_asChar(shost));
+    Rboolean test = (EXTPTRSXP == TYPEOF(sext)) &&
+        (SOCKETS_SERVER_TAG == R_ExternalPtrTag(sext));
+    if (fail && !test)
+        Rf_error("not a 'server' instance");
+    return test;
+}
+
+struct server * _server_ptr(SEXP sserver, Rboolean fail)
+{
+    struct server * p = R_ExternalPtrAddr(sserver);
+    if ((NULL == p) && fail)
+        Rf_error("'server' is not valid (closed?)");
+    return p;
+}
+
+static struct server * _server_close(SEXP sext)
+{
+    if (!_is_server(sext, FALSE))
+        return NULL;
+
+    struct server *p = _server_ptr(sext, FALSE);
+    if (NULL == p)
+        return NULL;
+
+    if ((0 != p->fd) && (close(p->fd) != 0))
+        Rf_error("could not close 'server':\n  %s");
+
+    p->fd = 0;
+    return p;
+}
+
+static void _server_finalizer(SEXP sext)
+{
+    if (!_is_server(sext, FALSE))
+        return;
+
+    struct server *p = _server_close(sext);
+    if (NULL == p)
+        return;
+
+    Free(p);
+    R_SetExternalPtrAddr(sext, NULL);
+}
+
+SEXP server(SEXP shostname, SEXP sport)
+{
+    const char *hostname = CHAR(Rf_asChar(shostname));
     const int port = Rf_asInteger(sport);
     SEXP sport1 = PROTECT(Rf_asChar(sport));
     const char *service = CHAR(sport1); /* port-as-character */
@@ -224,145 +307,210 @@ SEXP server_bind(SEXP shost, SEXP sport)
     freeaddrinfo(addr);
     UNPROTECT(1);
 
-    if (listen(fd, BACKLOG) < 0)
-        Rf_error("could not 'listen' on socket %s:%d:\n  %s",
-                 hostname, port, strerror(errno));
-
     /* R external pointer */
-    struct sockets_ptr *p = Calloc(1, struct sockets_ptr);
-    p->hostname = Calloc(strlen(hostname) + 1, char);
-    memcpy(p->hostname, hostname, strlen(hostname));
-    p->port = port;
+    struct server *p = Calloc(1, struct server);
     p->fd = fd;
     FD_ZERO(&p->active_fds);
     FD_SET(p->fd, &p->active_fds);
 
-    SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETS_TAG, NULL));
-    R_RegisterCFinalizerEx(sext, _sockets_finalizer, TRUE);
-
+    SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETS_SERVER_TAG, NULL));
+    R_RegisterCFinalizerEx(sext, _server_finalizer, TRUE);
     UNPROTECT(1);
     return sext;
 }
 
-SEXP server_listen(SEXP sext, SEXP backlog)
+SEXP server_listen(SEXP sext, SEXP sbacklog)
 {
-    (void) _check_integer_scalar_non_negative(backlog);
-    (void) _check_sockets(sext, TRUE);
-    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
+    (void) _is_server(sext, TRUE);
+    (void) _is_integer_scalar_non_negative(sbacklog, "backlog");
+    struct server *p = _server_ptr(sext, TRUE);
 
-    if (listen(p->fd, backlog) < 0)
-        Rf_error("could not 'listen' on socket %s:%d:\n  %s",
-                 hostname, port, strerror(errno));
+    if (listen(p->fd, Rf_asInteger(sbacklog)) < 0)
+        Rf_error("could not 'listen' on socket:\n  %s", strerror(errno));
+
+    return R_NilValue;
 }
 
-SEXP server_select(SEXP sext, SEXP stimeout)
+SEXP server_select(SEXP sserver, SEXP stimeout)
 {
-    (void) _check_integer_scalar_non_negative(stimeout, "timeout");
-    (void) _check_sockets(sext, TRUE);
-    if (!LOGICAL(is_open(sext))[0])
+    (void) _is_integer_scalar_non_negative(stimeout, "timeout");
+    (void) _is_server(sserver, TRUE);
+    if (!LOGICAL(sockets_is_open(sserver))[0])
         Rf_error("'server' socket is not open");
 
-    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
+    struct server *p = _server_ptr(sserver, TRUE);
     fd_set read_fds = p->active_fds;
     struct timeval tv;
     int n = 0;
 
-    tv.tv_sec = INTEGER(stimeout)[0];
+    tv.tv_sec = Rf_asInteger(stimeout);
     tv.tv_usec = 0;
     if ((n = select(FD_SETSIZE, &read_fds, NULL, NULL, &tv)) < 0)
-        Rf_error("'select' failed on %s:%d:\n  %s",
-                 p->hostname, p->port, strerror(errno));
-    if (n == 0)                 /* timeout */
-        return Rf_allocVector(VECSXP, 0);
-
-    struct sockaddr_in client;
-    socklen_t len = sizeof(struct sockaddr_in);
-    int client_fd;
+        Rf_error("'select' failed:\n  %s", strerror(errno));
 
     int i_rec = 0;
     for (int i = 0; i < FD_SETSIZE; ++i)
         if (FD_ISSET(i, &read_fds) && i != p->fd)
             i_rec += 1;
-    SEXP res = PROTECT(Rf_allocVector(VECSXP, i_rec));
+
+    SEXP res = PROTECT(Rf_allocVector(VECSXP, 2));
+    SET_VECTOR_ELT(res, 0, Rf_ScalarLogical(FD_ISSET(p->fd, &read_fds)));
+    SET_VECTOR_ELT(res, 1, Rf_allocVector(INTSXP, i_rec));
+    int *clients = INTEGER(VECTOR_ELT(res, 1));
+
     i_rec = 0;
-
-    char recv_buf[BUF_SIZE];
-
-    for (int i = 0; i < FD_SETSIZE; ++i) {
-
-        if (!FD_ISSET(i, &read_fds))
-            continue;
-
-        if (i == p->fd) {       /* accept */
-            client_fd = accept(i, (struct sockaddr *) &client, &len);
-            if (client_fd < 0)
-                Rf_error("could not 'accept' on socket %s:%d:\n  %s",
-                         p->hostname, p->port, strerror(errno));
-            FD_SET(client_fd, &p->active_fds);
-        } else {                /* recv */
-            ssize_t n = read(i, recv_buf, BUF_SIZE - 1);
-
-            if (n <= 0) {       /* recv close or error */
-                if (close(i) != 0)
-                    Rf_warning("'select' failed to close client:\n  %s",
-                               strerror(errno));
-                FD_CLR(i, &p->active_fds);
-
-            } else {            /* recv message */
-                recv_buf[n] = '\0';
-                SET_VECTOR_ELT(res, i_rec, Rf_allocVector(RAWSXP, n));
-                memcpy(RAW(VECTOR_ELT(res, i_rec)), recv_buf, n);
-                i_rec += 1;
-            }
-        }
-    }
+    for (int i = 0; i < FD_SETSIZE; ++i)
+        if (i != p->fd && FD_ISSET(i, &read_fds))
+            clients[i_rec++] = i;
 
     UNPROTECT(1);
     return res;
 }
 
-SEXP server_send(SEXP sext, SEXP stext)
+SEXP server_accept(SEXP sserver)
 {
-    (void) _check_sockets(sext, TRUE);
-    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
-    int n = 0;
+    (void) _is_server(sserver, TRUE);
+    struct server *p = _server_ptr(sserver, TRUE);
 
-    for (int i = 0; i < LENGTH(stext); ++i) {
-        const char *elt = CHAR(STRING_ELT(stext, i));
-        const int elt_n = strlen(elt);
-        if (send(p->fd, elt, elt_n, 0) < 0)
-            Rf_error("server 'send' element %d error:\n  %s", strerror(errno));
-        n += elt_n;
+    struct sockaddr_in *client = Calloc(1, struct sockaddr_in);
+    socklen_t len = sizeof(struct sockaddr_in);
+    int client_fd;
+
+    client_fd = accept(p->fd, (struct sockaddr *) client, &len);
+    if (client_fd < 0) {
+        Free(client);
+        Rf_error("could not 'accept' on socket:\n  %s", strerror(errno));
     }
+    FD_SET(client_fd, &p->active_fds);
+
+    struct clientof *c = _clientof(client_fd, client);
+    SEXP sclientof = PROTECT(R_MakeExternalPtr(c, SOCKETS_CLIENTOF_TAG, NULL));
+    R_RegisterCFinalizerEx(sclientof, _clientof_finalizer, TRUE);
+
+    UNPROTECT(1);
+    return sclientof;
+}
+
+SEXP server_recvfrom(SEXP sserver, SEXP sclientof)
+{
+    (void) _is_server(sserver, TRUE);
+    (void) _is_clientof(sclientof, TRUE);
+
+    return R_NilValue;
+}
+
+SEXP server_sendto(SEXP sserver, SEXP sraw, SEXP sclientof)
+{
+    (void) _is_server(sserver, TRUE);
+    (void) _is_clientof(sclientof, TRUE);
+    _is_raw(sraw);
+
+    return R_NilValue;
+}
+
+SEXP server_close_clientof(SEXP sserver, SEXP sclientof)
+{
+    (void) _is_server(sserver, TRUE);
+    (void) _is_clientof(sclientof, TRUE);
+
+    struct server *p = _server_ptr(sserver, TRUE);
+    struct clientof *cf = _clientof_ptr(sclientof, TRUE);
+
+    FD_CLR(cf->fd, &p->active_fds);
+    _clientof_close(sclientof);
+
+    return sserver;
+}
+
+SEXP server_close(SEXP sserver)
+{
+    (void) _is_server(sserver, TRUE);
+    (void) _server_close(sserver);
+    return Rf_ScalarLogical(TRUE);
+}
+
+/* clientof */
+
+SEXP clientof_recv(SEXP sclientof)
+{
+    (void) _is_clientof(sclientof, TRUE);
+    struct clientof *p = _clientof_ptr(sclientof, TRUE);
+    char receive_buf[BUF_SIZE];
+    ssize_t n = 0;
+
+    while (n == 0) {
+        if ((n = recv(p->fd, receive_buf, BUF_SIZE - 1, 0)) < 0)
+            Rf_error("clientof 'recv' error:\n  %s", strerror(errno));
+    }
+
+    SEXP ret = PROTECT(Rf_allocVector(RAWSXP, n));
+    memcpy(RAW(ret), receive_buf, n);
+    UNPROTECT(1);
+    return ret;
+}
+
+SEXP clientof_send(SEXP sclientof, SEXP sraw)
+{
+    (void) _is_clientof(sclientof, TRUE);
+    _is_raw(sraw);
+    struct clientof *p = _clientof_ptr(sclientof, TRUE);
+    ssize_t n;
+
+    if ((n = send(p->fd, RAW(sraw), LENGTH(sraw), 0)) < 0)
+        Rf_error("clientof 'send':\n  %s", strerror(errno));
 
     return Rf_ScalarInteger(n);
 }
 
-SEXP server_recv(SEXP sext, SEXP scheck_user_interrupt)
+/* socket */
+
+Rboolean _is_sockets(SEXP ssockets, Rboolean fail)
 {
-    (void) _check_integer_scalar_non_negative(scheck_user_interrupt,
-                                       "check_user_interrupt");
-    (void) _check_sockets(sext, TRUE);
-    struct sockets_ptr *p = _sockets_ptr(sext, TRUE);
-    char receive_buf[BUF_SIZE];
-    ssize_t n = 0;
-
-    struct timeval tv;
-    tv.tv_sec = INTEGER(scheck_user_interrupt)[0];
-    tv.tv_usec = 0;
-
-    while (n == 0) {
-        if ((n = recv(p->fd, receive_buf, BUF_SIZE - 1, 0)) < 0)
-            Rf_error("server 'recv' error:\n  %s", strerror(errno));
-        receive_buf[n] = '\0';
-    }
-
-    return Rf_ScalarString(mkChar(receive_buf));
+    Rboolean test = _is_client(ssockets, FALSE) |
+        _is_server(ssockets, FALSE) |
+        _is_clientof(ssockets, FALSE);
+    if (fail && !test)
+        Rf_error("not a 'sockets' subclass");
+    return test;
 }
 
-SEXP server_close(SEXP sext)
+SEXP sockets_fd(SEXP ssockets)
 {
-    (void) _check_sockets(sext, TRUE);
-    (void) _sockets_close(sext);
-    return Rf_ScalarLogical(TRUE);
+    (void) _is_sockets(ssockets, TRUE);
+    int fd = 0;
+
+    if (!LOGICAL(sockets_is_open(ssockets))[0])
+        Rf_error("socket is not open");
+
+    if (_is_client(ssockets, FALSE)) {
+        struct client *p = _client_ptr(ssockets, FALSE);
+        fd = p->fd;
+    } else if (_is_server(ssockets, FALSE)) {
+        struct server *p = _server_ptr(ssockets, FALSE);
+        fd = p->fd;
+    } else if (_is_clientof(ssockets, FALSE)) {
+        struct clientof *p = _clientof_ptr(ssockets, FALSE);
+        fd = p->fd;
+    }
+
+    return Rf_ScalarInteger(fd);
+}
+
+SEXP sockets_is_open(SEXP ssockets)
+{
+    (void) _is_sockets(ssockets, TRUE);
+    Rboolean test;
+
+    if (_is_client(ssockets, FALSE)) {
+        struct client *p = _client_ptr(ssockets, FALSE);
+        test = (NULL != p) && (0 != p->fd);
+    } else if (_is_server(ssockets, FALSE)) {
+        struct server *p = _server_ptr(ssockets, FALSE);
+        test = (NULL != p) && (0 != p->fd);
+    } else if (_is_clientof(ssockets, FALSE)) {
+        struct clientof *p = _clientof_ptr(ssockets, FALSE);
+        test = (NULL != p) && (0 != p->fd);
+    }
+
+    return Rf_ScalarLogical(test);
 }

@@ -3,19 +3,24 @@
 #include "sockets.h"
 
 static const R_CallMethodDef callMethods[] = {
-    {".sockets_init", (DL_FUNC) &sockets_init, 1},
+    {".sockets_init", (DL_FUNC) &sockets_init, 0},
+    {".sockets_fd", (DL_FUNC) &sockets_fd, 1},
+    {".sockets_is_open", (DL_FUNC) &sockets_is_open, 1},
 
-    {".is_sockets", (DL_FUNC) &is_sockets, 1},
-    {".is_open", (DL_FUNC) &is_open, 1},
-    {".socket_hostname", (DL_FUNC) &socket_hostname, 1},
-    {".socket_port", (DL_FUNC) &socket_port, 1},
+    {".client", (DL_FUNC) &client, 2},
+    {".client_recv", (DL_FUNC) &client_recv, 1},
+    {".client_send", (DL_FUNC) &client_send, 2},
+    {".client_close", (DL_FUNC) &client_close, 1},
 
-    {".client_connect", (DL_FUNC) &client_connect, 2},
-    {".client_disconnect", (DL_FUNC) &client_disconnect, 0},
-
-    {".server_bind", (DL_FUNC) &server_bind, 2},
+    {".server", (DL_FUNC) &server, 2},
+    {".server_listen", (DL_FUNC) &server_listen, 2},
     {".server_select", (DL_FUNC) &server_select, 2},
-    {".server_send", (DL_FUNC) &server_send, 2},
+    {".server_accept", (DL_FUNC) &server_accept, 1},
+    {".clientof_recv", (DL_FUNC) &clientof_recv, 1},
+    {".server_recvfrom", (DL_FUNC) &server_recvfrom, 2},
+    {".clientof_send", (DL_FUNC) &clientof_send, 2},
+    {".server_sendto", (DL_FUNC) &server_sendto, 3},
+    {".server_close_clientof", (DL_FUNC) &server_close_clientof, 2},
     {".server_close", (DL_FUNC) &server_close, 1},
 
     {NULL, NULL, 0}
