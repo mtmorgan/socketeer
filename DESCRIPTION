@@ -1,11 +1,13 @@
-Package: sockets
-Title: Simple alternative socket 'connection'
+Package: socketeer
+Title: Interface to Linux-style TCP sockets.
 Version: 0.0.1
 Authors@R: person("Martin", "Morgan",
     email = "martin.morgan@roswellpark.org",
     role = c("aut", "cre"))
-Description: This package is a simple implementation of sockets using
-    R's connections API.
+Description: This package is a simple implementation of TCP
+    sockets. It provides access to client-side socket(), connect(),
+    recv(), send(), and close(). It provides server-side socket(),
+    bind(), listen(), select(), accept(), recv(), send(), and close().
 License: Artistic-2.0
 Depends: R (>= 3.3.0)
 Suggests: testthat

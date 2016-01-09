@@ -1,4 +1,17 @@
-useDynLib(sockets, .registration=TRUE)
+useDynLib(socketeer, .registration=TRUE)
 
-exportPattern("^[^\\.]")
-S3method(print, sockets)
+export(hostname, port, is_open, send, recv,
+       client,
+       server, listen, selectfd, accept, recvfrom, sendto)
+
+S3method(print, socketeer)
+
+S3method(send, client)
+S3method(send, clientof)
+
+S3method(recv, client)
+S3method(recv, clientof)
+
+S3method(close, client)
+S3method(close, server)
+S3method(close, clientof)
