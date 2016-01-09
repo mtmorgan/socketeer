@@ -22,16 +22,12 @@ extern "C" {
     SEXP server_listen(SEXP sserver, SEXP backlog);
     SEXP server_selectfd(SEXP sserver, SEXP stimeout);
     SEXP server_accept(SEXP sserver);
-    SEXP server_close_clientof(SEXP sserver, SEXP sclientof);
+    SEXP server_close_client(SEXP sserver, SEXP sclient);
     SEXP server_close(SEXP sserver);
-
-    /* TCP server-side clients */
-    SEXP clientof_recv(SEXP sclientof, SEXP sbuffer_block_size);
-    SEXP clientof_send(SEXP sclientof, SEXP sraw);
 
     /* UDP server-side clients */
     /* SEXP server_recvfrom(SEXP sserver); */
-    /* SEXP server_sendto(SEXP sserver, SEXP sraw, SEXP sclientof); */
+    /* SEXP server_sendto(SEXP sserver, SEXP sraw, SEXP sclient); */
 
 #ifdef __cplusplus
 }

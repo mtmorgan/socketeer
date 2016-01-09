@@ -80,21 +80,21 @@ selectfd <- function(server, timeout = 30)
 
 accept <- function(server)
 {
-    clientof <- .Call(.server_accept, server$socket)
-    structure(list(socket=clientof, fd=._socketeer_fd(clientof),
+    client <- .Call(.server_accept, server$socket)
+    structure(list(socket=client, fd=._socketeer_fd(client),
                    hostname=hostname(server), port=port(server)),
               class=c("clientof", "client", "socketeer"))
 }
 
 recv.clientof <- function(clientof, buffer_block_size=32768L)
-    .Call(.clientof_recv, clientof$socket, as.integer(buffer_block_size))
+    .Call(.client_recv, clientof$socket, as.integer(buffer_block_size))
 
 send.clientof <- function(clientof, raw)
     ## return value: number of characters sent
-    invisible(.Call(.clientof_send, clientof$socket, raw))
+    invisible(.Call(.client_send, clientof$socket, raw))
 
 close.clientof <- function(con, server)
-    invisible(.Call(.server_close_clientof, server$socket, con$socket))
+    invisible(.Call(.server_close_client, server$socket, con$socket))
 
 close.server <- function(con)
     invisible(.Call(.server_close, con$socket))

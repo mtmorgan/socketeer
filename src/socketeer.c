@@ -22,18 +22,12 @@
 
 static SEXP SOCKETEER_CLIENT_TAG = NULL;
 static SEXP SOCKETEER_SERVER_TAG = NULL;
-static SEXP SOCKETEER_CLIENTOF_TAG = NULL;
 static int BUF_SIZE = 32767;
-
-struct client {
-    short fd;
-};
 
 SEXP socketeer_init()
 {
     SOCKETEER_CLIENT_TAG = install("socketeer_client");
     SOCKETEER_SERVER_TAG = install("socketeer_server");
-    SOCKETEER_CLIENTOF_TAG = install("socketeer_clientof");
     return R_NilValue;
 }
 
@@ -158,6 +152,17 @@ SEXP _recv(int fd, int block_size)
 
 /* client */
 
+struct client {
+    short fd;
+};
+
+struct client *_client(short fd)
+{
+    struct client *p = Calloc(1, struct client);
+    p->fd = fd;
+    return p;
+}
+
 Rboolean _is_client(SEXP sext, Rboolean fail)
 {
     Rboolean test = (EXTPTRSXP == TYPEOF(sext)) &&
@@ -229,14 +234,13 @@ SEXP client(SEXP shostname, SEXP sport)
         close(fd);
     }
 
+    freeaddrinfo(addr);
     if (a == NULL)              /* No address succeeded */
         Rf_error("could not connect to address %s:%s", hostname, service);
-    freeaddrinfo(addr);
     UNPROTECT(1);
 
     /* R external pointer */
-    struct client *p = Calloc(1, struct client);
-    p->fd = fd;
+    struct client *p = _client(fd);
     SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETEER_CLIENT_TAG, NULL));
     R_RegisterCFinalizerEx(sext, _client_finalizer, TRUE);
 
@@ -264,60 +268,6 @@ SEXP client_close(SEXP sclient)
     (void) _is_client(sclient, TRUE);
 
     return R_NilValue;
-}
-
-/* clientof */
-
-struct clientof {
-    short fd;
-    struct sockaddr_in *addr;
-};
-
-static Rboolean _is_clientof(SEXP sext, Rboolean fail)
-{
-    Rboolean test = (EXTPTRSXP == TYPEOF(sext)) &&
-        (SOCKETEER_CLIENTOF_TAG == R_ExternalPtrTag(sext));
-    if (fail && !test)
-        Rf_error("not a 'clientof' instance");
-    return test;
-}
-
-struct clientof *_clientof_ptr(SEXP sclient, Rboolean fail)
-{
-    struct clientof * p = R_ExternalPtrAddr(sclient);
-    if ((NULL == p) && fail)
-        Rf_error("'clientof' is not valid (closed?)");
-    return p;
-}
-
-struct clientof *_clientof_close(SEXP sclientof)
-{
-    struct clientof *p = _clientof_ptr(sclientof, TRUE);
-    close(p->fd);
-    p-> fd = 0;
-    return p;
-}
-
-void _clientof_finalizer(SEXP sclientof)
-{
-    if (!_is_clientof(sclientof, FALSE))
-        return;
-
-    struct clientof *p = _clientof_close(sclientof);
-    if (NULL == p)
-        return;
-
-    Free(p->addr);
-    Free(p);
-    R_SetExternalPtrAddr(sclientof, NULL);
-}
-
-struct clientof *_clientof(short fd, struct sockaddr_in *addr)
-{
-    struct clientof *p = Calloc(1, struct clientof);
-    p->fd = fd;
-    p->addr = addr;
-    return p;
 }
 
 /* server */
@@ -476,36 +426,33 @@ SEXP server_accept(SEXP sserver)
     (void) _is_server(sserver, TRUE);
     struct server *p = _server_ptr(sserver, TRUE);
 
-    struct sockaddr_in *client = Calloc(1, struct sockaddr_in);
+    struct sockaddr_in client;
     socklen_t len = sizeof(struct sockaddr_in);
     int client_fd;
 
-    client_fd = accept(p->fd, (struct sockaddr *) client, &len);
-    if (client_fd < 0) {
-        Free(client);
+    client_fd = accept(p->fd, (struct sockaddr *) &client, &len);
+    if (client_fd < 0)
         Rf_error("could not 'accept' on socket:\n  %s", strerror(errno));
-    }
     FD_SET(client_fd, &p->active_fds);
 
-    struct clientof *c = _clientof(client_fd, client);
-    SEXP sclientof =
-        PROTECT(R_MakeExternalPtr(c, SOCKETEER_CLIENTOF_TAG, NULL));
-    R_RegisterCFinalizerEx(sclientof, _clientof_finalizer, TRUE);
+    struct client *c = _client(client_fd);
+    SEXP sclient = PROTECT(R_MakeExternalPtr(c, SOCKETEER_CLIENT_TAG, NULL));
+    R_RegisterCFinalizerEx(sclient, _client_finalizer, TRUE);
 
     UNPROTECT(1);
-    return sclientof;
+    return sclient;
 }
 
-SEXP server_close_clientof(SEXP sserver, SEXP sclientof)
+SEXP server_close_client(SEXP sserver, SEXP sclient)
 {
     (void) _is_server(sserver, TRUE);
-    (void) _is_clientof(sclientof, TRUE);
+    (void) _is_client(sclient, TRUE);
 
     struct server *p = _server_ptr(sserver, TRUE);
-    struct clientof *cf = _clientof_ptr(sclientof, TRUE);
+    struct client *cf = _client_ptr(sclient, TRUE);
 
     FD_CLR(cf->fd, &p->active_fds);
-    _clientof_close(sclientof);
+    _client_close(sclient);
 
     return sserver;
 }
@@ -517,30 +464,13 @@ SEXP server_close(SEXP sserver)
     return Rf_ScalarLogical(TRUE);
 }
 
-/* clientof */
-
-SEXP clientof_recv(SEXP sclientof, SEXP sbuffer_block_size)
-{
-    (void) _is_clientof(sclientof, TRUE);
-    _is_integer_scalar_non_negative(sbuffer_block_size, "buffer_block_size");
-    struct clientof *p = _clientof_ptr(sclientof, TRUE);
-    return _recv(p->fd, Rf_asInteger(sbuffer_block_size));
-}
-
-SEXP clientof_send(SEXP sclientof, SEXP sraw)
-{
-    (void) _is_clientof(sclientof, TRUE);
-    struct clientof *p = _clientof_ptr(sclientof, TRUE);
-    return _send(p->fd, sraw, "clientof");
-}
-
 /* socket */
 
 Rboolean _is_socketeer(SEXP ssocketeer, Rboolean fail)
 {
     Rboolean test = _is_client(ssocketeer, FALSE) ||
         _is_server(ssocketeer, FALSE) ||
-        _is_clientof(ssocketeer, FALSE);
+        _is_client(ssocketeer, FALSE);
     if (fail && !test)
         Rf_error("not a 'socketeer' subclass");
     return test;
@@ -560,8 +490,8 @@ SEXP socketeer_fd(SEXP ssocketeer)
     } else if (_is_server(ssocketeer, FALSE)) {
         struct server *p = _server_ptr(ssocketeer, FALSE);
         fd = p->fd;
-    } else if (_is_clientof(ssocketeer, FALSE)) {
-        struct clientof *p = _clientof_ptr(ssocketeer, FALSE);
+    } else if (_is_client(ssocketeer, FALSE)) {
+        struct client *p = _client_ptr(ssocketeer, FALSE);
         fd = p->fd;
     }
 
@@ -579,8 +509,8 @@ SEXP socketeer_is_open(SEXP ssocketeer)
     } else if (_is_server(ssocketeer, FALSE)) {
         struct server *p = _server_ptr(ssocketeer, FALSE);
         test = (NULL != p) && (0 != p->fd);
-    } else if (_is_clientof(ssocketeer, FALSE)) {
-        struct clientof *p = _clientof_ptr(ssocketeer, FALSE);
+    } else if (_is_client(ssocketeer, FALSE)) {
+        struct client *p = _client_ptr(ssocketeer, FALSE);
         test = (NULL != p) && (0 != p->fd);
     }
 
