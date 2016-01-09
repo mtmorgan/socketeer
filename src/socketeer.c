@@ -37,6 +37,64 @@ SEXP socketeer_init()
     return R_NilValue;
 }
 
+/* buffer */
+
+struct buffer {
+    int block_size, used_size;
+    char *block;
+    struct buffer *next;
+};
+
+struct buffer *_buffer(int block_size)
+{
+    struct buffer *b = Calloc(1, struct buffer);
+    b->block_size = block_size;
+    b->used_size = 0;
+    b->block = Calloc(b->block_size, char);
+    b->next = NULL;
+    return b;
+}
+
+struct buffer *_buffer_grow(struct buffer *b)
+{
+    b->next = _buffer(b->block_size);
+    return b->next;
+}
+
+void _buffer_free(struct buffer *b)
+{
+    struct buffer *next;
+    while (NULL != b) {
+        next = b->next;
+        Free(b->block);
+        Free(b);
+        b = next;
+    }
+}
+
+SEXP _buffer_as_raw(struct buffer *b)
+{
+    ssize_t n = 0;
+    struct buffer *curr = b;
+    while (NULL != curr) {
+        n += curr->used_size;
+        curr = curr->next;
+    }
+
+    SEXP res = PROTECT(Rf_allocVector(RAWSXP, n));
+    unsigned char *p = RAW(res);
+    n = 0;
+    curr = b;
+    while (NULL != curr) {
+        memcpy(p + n, curr->block, curr->used_size);
+        n += curr->used_size;
+        curr = curr->next;
+    }
+
+    UNPROTECT(1);
+    return res;
+}
+
 /* utilities */
 
 void _is_raw(SEXP sraw)
@@ -63,18 +121,37 @@ SEXP _send(int fd, SEXP sraw, const char *name)
     return Rf_ScalarInteger(n);
 }
 
-SEXP _recv(int fd, const char *name)
+SEXP _recv(int fd, int block_size)
 {
-    char receive_buf[BUF_SIZE];
+    struct buffer
+        *buffer_head = _buffer(block_size),
+        *b = buffer_head;
     ssize_t n = 0;
+    int flags = 0;
 
-    while (n == 0) {
-        if ((n = recv(fd, receive_buf, BUF_SIZE - 1, 0)) < 0)
-            Rf_error("%s 'recv' error:\n  %s", name, strerror(errno));
+    for (;;) {
+        do 
+            n = recv(fd, b->block, b->block_size, flags);
+        while (n == EINTR);     /* interrupt before receipt */
+
+        if (n == 0) {           /* terminated gracefully */
+            break;
+        } else if (errno == EAGAIN || errno == EWOULDBLOCK)
+            break;              /* blocking */
+        else if (n < 0) {       /* error */
+            _buffer_free(buffer_head);
+            Rf_error("'recv' error:\n  %s", strerror(errno));
+        }
+
+        /* n == block_size, maybe more data? */
+        flags |= MSG_DONTWAIT;
+        b->used_size = n;
+        b = _buffer_grow(b);
     }
 
-    SEXP ret = PROTECT(Rf_allocVector(RAWSXP, n));
-    memcpy(RAW(ret), receive_buf, n);
+    SEXP ret = PROTECT(_buffer_as_raw(buffer_head));
+    _buffer_free(buffer_head);
+
     UNPROTECT(1);
     return ret;
 }
@@ -132,7 +209,7 @@ SEXP client(SEXP shostname, SEXP sport)
     hints.ai_family = AF_INET;       /* Allow IPv4 only */
     hints.ai_socktype = SOCK_STREAM; /* stream socket */
     hints.ai_flags = AI_NUMERICSERV; /* Numeric service */
-    hints.ai_protocol = 0;          /* Any protocol */
+    hints.ai_protocol = 0;           /* Any protocol */
 
     errcode = getaddrinfo(hostname, service, &hints, &addr);
     if (errcode != 0) {
@@ -167,11 +244,12 @@ SEXP client(SEXP shostname, SEXP sport)
     return sext;
 }
 
-SEXP client_recv(SEXP sclient)
+SEXP client_recv(SEXP sclient, SEXP sbuffer_block_size)
 {
     (void) _is_client(sclient, TRUE);
+    _is_integer_scalar_non_negative(sbuffer_block_size, "buffer_block_size");
     struct client *p = _client_ptr(sclient, TRUE);
-    return _recv(p->fd, "client");
+    return _recv(p->fd, Rf_asInteger(sbuffer_block_size));
 }
 
 SEXP client_send(SEXP sclient, SEXP sraw)
@@ -348,7 +426,7 @@ SEXP server(SEXP shostname, SEXP sport)
 SEXP server_listen(SEXP sext, SEXP sbacklog)
 {
     (void) _is_server(sext, TRUE);
-    (void) _is_integer_scalar_non_negative(sbacklog, "backlog");
+    _is_integer_scalar_non_negative(sbacklog, "backlog");
     struct server *p = _server_ptr(sext, TRUE);
 
     if (listen(p->fd, Rf_asInteger(sbacklog)) < 0)
@@ -441,11 +519,12 @@ SEXP server_close(SEXP sserver)
 
 /* clientof */
 
-SEXP clientof_recv(SEXP sclientof)
+SEXP clientof_recv(SEXP sclientof, SEXP sbuffer_block_size)
 {
     (void) _is_clientof(sclientof, TRUE);
+    _is_integer_scalar_non_negative(sbuffer_block_size, "buffer_block_size");
     struct clientof *p = _clientof_ptr(sclientof, TRUE);
-    return _recv(p->fd, "clientof");
+    return _recv(p->fd, Rf_asInteger(sbuffer_block_size));
 }
 
 SEXP clientof_send(SEXP sclientof, SEXP sraw)
@@ -459,8 +538,8 @@ SEXP clientof_send(SEXP sclientof, SEXP sraw)
 
 Rboolean _is_socketeer(SEXP ssocketeer, Rboolean fail)
 {
-    Rboolean test = _is_client(ssocketeer, FALSE) |
-        _is_server(ssocketeer, FALSE) |
+    Rboolean test = _is_client(ssocketeer, FALSE) ||
+        _is_server(ssocketeer, FALSE) ||
         _is_clientof(ssocketeer, FALSE);
     if (fail && !test)
         Rf_error("not a 'socketeer' subclass");

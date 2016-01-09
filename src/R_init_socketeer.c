@@ -9,7 +9,7 @@ static const R_CallMethodDef callMethods[] = {
 
     /* client */
     {".client", (DL_FUNC) &client, 2},
-    {".client_recv", (DL_FUNC) &client_recv, 1},
+    {".client_recv", (DL_FUNC) &client_recv, 2},
     {".client_send", (DL_FUNC) &client_send, 2},
     {".client_close", (DL_FUNC) &client_close, 1},
 
@@ -22,7 +22,7 @@ static const R_CallMethodDef callMethods[] = {
     {".server_close", (DL_FUNC) &server_close, 1},
 
     /* TCP server-side clients */
-    {".clientof_recv", (DL_FUNC) &clientof_recv, 1},
+    {".clientof_recv", (DL_FUNC) &clientof_recv, 2},
     {".clientof_send", (DL_FUNC) &clientof_send, 2},
 
     /* UDP server-side clients */

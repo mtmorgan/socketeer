@@ -45,8 +45,8 @@ client <- function(hostname="localhost", port)
               class=c("client", "socketeer"))
 }
 
-recv.client <- function(client)
-    .Call(.client_recv, client$socket)
+recv.client <- function(client, buffer_block_size=32768L)
+    .Call(.client_recv, client$socket, as.integer(buffer_block_size))
 
 send.client <- function(client, raw)
     invisible(.Call(.client_send, client$socket, raw))
@@ -86,18 +86,12 @@ accept <- function(server)
               class=c("clientof", "client", "socketeer"))
 }
 
-recv.clientof <- function(clientof)
-    .Call(.clientof_recv, clientof$socket)
+recv.clientof <- function(clientof, buffer_block_size=32768L)
+    .Call(.clientof_recv, clientof$socket, as.integer(buffer_block_size))
 
 send.clientof <- function(clientof, raw)
     ## return value: number of characters sent
     invisible(.Call(.clientof_send, clientof$socket, raw))
-
-recvfrom <- function(server, clientof)
-    .Call(.server_recvfrom, server$socket, clientof$socket)
-
-sendto <- function(server, raw, clientof)
-    invisible(.Call(.server_sendto, server$socket, raw, clientof$socket))
 
 close.clientof <- function(con, server)
     invisible(.Call(.server_close_clientof, server$socket, con$socket))

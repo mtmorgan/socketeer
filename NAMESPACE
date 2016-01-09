@@ -2,7 +2,7 @@ useDynLib(socketeer, .registration=TRUE)
 
 export(hostname, port, is_open, send, recv,
        client,
-       server, listen, selectfd, accept, recvfrom, sendto)
+       server, listen, selectfd, accept)
 
 S3method(print, socketeer)
 

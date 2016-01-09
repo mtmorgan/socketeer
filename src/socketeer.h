@@ -13,7 +13,7 @@ extern "C" {
 
     /* client */
     SEXP client(SEXP shostname, SEXP sport); /* socket(), connect() */
-    SEXP client_recv(SEXP sclient);
+    SEXP client_recv(SEXP sclient, SEXP sbuffer_block_size);
     SEXP client_send(SEXP sclient, SEXP sraw);
     SEXP client_close(SEXP sclient);
 
@@ -26,7 +26,7 @@ extern "C" {
     SEXP server_close(SEXP sserver);
 
     /* TCP server-side clients */
-    SEXP clientof_recv(SEXP sclientof);
+    SEXP clientof_recv(SEXP sclientof, SEXP sbuffer_block_size);
     SEXP clientof_send(SEXP sclientof, SEXP sraw);
 
     /* UDP server-side clients */
