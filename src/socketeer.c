@@ -277,6 +277,15 @@ struct server {
     fd_set active_fds;
 };
 
+struct server *_server(short fd)
+{
+    struct server *p = Calloc(1, struct server);
+    p->fd = fd;
+    FD_ZERO(&p->active_fds);
+    FD_SET(p->fd, &p->active_fds);
+    return p;
+}
+
 static Rboolean _is_server(SEXP sext, Rboolean fail)
 {
     Rboolean test = (EXTPTRSXP == TYPEOF(sext)) &&
@@ -362,10 +371,7 @@ SEXP server(SEXP shostname, SEXP sport)
     UNPROTECT(1);
 
     /* R external pointer */
-    struct server *p = Calloc(1, struct server);
-    p->fd = fd;
-    FD_ZERO(&p->active_fds);
-    FD_SET(p->fd, &p->active_fds);
+    struct server *p = _server(fd);
 
     SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETEER_SERVER_TAG, NULL));
     R_RegisterCFinalizerEx(sext, _server_finalizer, TRUE);
