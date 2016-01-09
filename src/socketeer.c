@@ -182,8 +182,13 @@ struct client * _client_ptr(SEXP sclient, Rboolean fail)
 
 struct client *_client_close(SEXP sclient)
 {
-    struct client *p = _client_ptr(sclient, TRUE);
-    close(p->fd);
+    struct client *p = _client_ptr(sclient, FALSE);
+    if (NULL == p)
+        return NULL;
+
+    if ((0 != p->fd) && (close(p->fd) != 0))
+        Rf_error("could not close 'server':\n  %s");
+
     p-> fd = 0;
     return p;
 }
@@ -295,7 +300,7 @@ static Rboolean _is_server(SEXP sext, Rboolean fail)
     return test;
 }
 
-struct server * _server_ptr(SEXP sserver, Rboolean fail)
+struct server *_server_ptr(SEXP sserver, Rboolean fail)
 {
     struct server * p = R_ExternalPtrAddr(sserver);
     if ((NULL == p) && fail)
@@ -303,12 +308,9 @@ struct server * _server_ptr(SEXP sserver, Rboolean fail)
     return p;
 }
 
-static struct server * _server_close(SEXP sext)
+static struct server *_server_close(SEXP sserver)
 {
-    if (!_is_server(sext, FALSE))
-        return NULL;
-
-    struct server *p = _server_ptr(sext, FALSE);
+    struct server *p = _server_ptr(sserver, FALSE);
     if (NULL == p)
         return NULL;
 
