@@ -91,22 +91,35 @@ SEXP _buffer_as_raw(struct buffer *b)
 
 /* utilities */
 
-void _is_raw(SEXP sraw)
+void _is_raw(SEXP x, const char *name)
 {
-    if (TYPEOF(sraw) != RAWSXP)
-        Rf_error("'raw' must be a raw() vector");
+    if (TYPEOF(x) != RAWSXP)
+        Rf_error("'%s' must be raw()", name);
+}
+
+void _is_character_scalar(SEXP x, const char *name)
+{
+    if ((TYPEOF(x) != STRSXP) || (Rf_length(x) != 1) ||
+        (Rf_length(Rf_asChar(x)) == 0))
+        Rf_error("'%s' must be character(1) with nzchar()", name);
+}
+
+void _is_logical_scalar(SEXP x, const char *name)
+{
+    if ((TYPEOF(x) != LGLSXP) || (Rf_length(x) != 1) || (ISNA(LOGICAL(x)[0])))
+        Rf_error("'%s' must be logical(1) and not NA", name);
 }
 
 void _is_integer_scalar_non_negative(SEXP x, const char *name)
 {
-    if ((TYPEOF(x) != INTSXP) || (LENGTH(x) != 1) ||
+    if ((TYPEOF(x) != INTSXP) || (Rf_length(x) != 1) ||
         (ISNA(INTEGER(x)[0])) || INTEGER(x)[0] < 0)
         Rf_error("'%s' must be non-negative integer(1)", name);
 }
 
 SEXP _send(int fd, SEXP sraw, const char *name)
 {
-    (void) _is_raw(sraw);
+    (void) _is_raw(sraw, "raw");
     ssize_t n;
 
     if ((n = send(fd, RAW(sraw), LENGTH(sraw), 0)) < 0)
@@ -180,38 +193,9 @@ struct client * _client_ptr(SEXP sclient, Rboolean fail)
     return p;
 }
 
-struct client *_client_close(SEXP sclient)
+Rboolean _client_open(const char *hostname, const char *service,
+                      struct client **client_ptr)
 {
-    struct client *p = _client_ptr(sclient, FALSE);
-    if (NULL == p)
-        return NULL;
-
-    if ((0 != p->fd) && (close(p->fd) != 0))
-        Rf_error("could not close 'server':\n  %s");
-
-    p-> fd = 0;
-    return p;
-}
-
-void _client_finalizer(SEXP sclient)
-{
-    if (!_is_client(sclient, FALSE))
-        return;
-
-    struct client *p = _client_close(sclient);
-    if (NULL == p)
-        return;
-
-    Free(p);
-    R_SetExternalPtrAddr(sclient, NULL);
-}
-
-SEXP client(SEXP shostname, SEXP sport)
-{
-    const char *hostname = CHAR(Rf_asChar(shostname));
-    const int port = Rf_asInteger(sport);
-    SEXP sport1 = PROTECT(Rf_asChar(sport));
-    const char *service = CHAR(sport1); /* port-as-character */
     struct addrinfo hints, *addr, *a;
     int errcode = 0, fd = 0;
 
@@ -223,9 +207,9 @@ SEXP client(SEXP shostname, SEXP sport)
 
     errcode = getaddrinfo(hostname, service, &hints, &addr);
     if (errcode != 0) {
-        UNPROTECT(1);
-        Rf_error("could not get address for %s:%s:\n  %s",
-                 hostname, service, gai_strerror(errcode));
+        Rf_warning("could not get address for %s:%s:\n  %s",
+                   hostname, service, gai_strerror(errcode));
+        return FALSE;
     }
 
     for (a = addr; a != NULL; a = a->ai_next) {
@@ -240,17 +224,64 @@ SEXP client(SEXP shostname, SEXP sport)
     }
 
     freeaddrinfo(addr);
-    if (a == NULL)              /* No address succeeded */
-        Rf_error("could not connect to address %s:%s", hostname, service);
-    UNPROTECT(1);
 
-    /* R external pointer */
-    struct client *p = _client(fd);
-    SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETEER_CLIENT_TAG, NULL));
-    R_RegisterCFinalizerEx(sext, _client_finalizer, TRUE);
+    if (a == NULL) {            /* No address succeeded */
+        Rf_warning("could not connect to address %s:%s", hostname, service);
+        return FALSE;
+    }
 
-    UNPROTECT(1);
-    return sext;
+    *client_ptr = _client(fd);
+
+    return TRUE;
+}
+
+void _client_close(struct client *client)
+{
+    if (NULL == client)
+        return;
+
+    if ((0 != client->fd) && (close(client->fd) != 0))
+        Rf_error("could not close 'client':\n  %s");
+
+    client-> fd = 0;
+}
+
+void _client_finalizer(SEXP sclient)
+{
+    if (!_is_client(sclient, FALSE))
+        return;
+
+    struct client *client = _client_ptr(sclient, FALSE);
+    if (NULL == client)
+        return;
+    _client_close(client);
+
+    Free(client);
+    R_SetExternalPtrAddr(sclient, NULL);
+}
+
+SEXP client(SEXP shostname, SEXP sport)
+{
+    _is_character_scalar(shostname, "hostname");
+    _is_integer_scalar_non_negative(sport, "port");
+
+    const char *hostname = CHAR(Rf_asChar(shostname));
+    SEXP sport1 = PROTECT(Rf_asChar(sport));
+    const char *service = CHAR(sport1); /* port-as-character */
+    struct client *client;
+    SEXP ret = NULL;
+
+    Rboolean ok = _client_open(hostname, service, &client);
+    if (!ok) {
+        UNPROTECT(1);
+        Rf_error("socketeer 'client' failed to open");
+    }
+
+    ret = PROTECT(R_MakeExternalPtr(client, SOCKETEER_CLIENT_TAG, NULL));
+    R_RegisterCFinalizerEx(ret, _client_finalizer, TRUE);
+    UNPROTECT(2);
+
+    return ret;
 }
 
 SEXP client_recv(SEXP sclient, SEXP sbuffer_block_size)
@@ -271,7 +302,7 @@ SEXP client_send(SEXP sclient, SEXP sraw)
 SEXP client_close(SEXP sclient)
 {
     (void) _is_client(sclient, TRUE);
-
+    _client_close(_client_ptr(sclient, FALSE));
     return R_NilValue;
 }
 
@@ -460,7 +491,7 @@ SEXP server_close_client(SEXP sserver, SEXP sclient)
     struct client *cf = _client_ptr(sclient, TRUE);
 
     FD_CLR(cf->fd, &p->active_fds);
-    _client_close(sclient);
+    _client_close(cf);
 
     return sserver;
 }
