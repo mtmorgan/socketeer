@@ -11,3 +11,4 @@ Description: This package is a simple implementation of TCP
 License: Artistic-2.0
 Depends: R (>= 3.3.0)
 Suggests: testthat
+Collate: socketeer.R Server.R Client.R zzz.R

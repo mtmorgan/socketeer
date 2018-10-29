@@ -1,8 +1,14 @@
 useDynLib(socketeer, .registration=TRUE)
 
-export(hostname, port, is_open, send, recv,
-       client,
-       server, listen, selectfd, accept)
+export(
+    ## low-level
+    hostname, port, is_open, send, recv,
+    client,
+    server, listen, selectfd, accept,
+
+    ## Server
+    Server, Client
+)
 
 S3method(print, socketeer)
 

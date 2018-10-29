@@ -4,7 +4,7 @@
 
 print.socketeer <- function(x, ...)
 {
-    cat(class(x)[1], " ", x$hostname, ":", x$port, " is_open: ", is_open(x),
+    cat(class(x)[1], ": ", x$hostname, ":", x$port, " is_open: ", is_open(x),
         "\n", sep="")
 }
 
@@ -45,6 +45,8 @@ client <- function(hostname="localhost", port)
               class=c("client", "socketeer"))
 }
 
+setOldClass("client")
+
 recv.client <- function(client, buffer_block_size=32768L)
     .Call(.client_recv, client$socket, as.integer(buffer_block_size))
 
@@ -52,7 +54,11 @@ send.client <- function(client, raw)
     invisible(.Call(.client_send, client$socket, raw))
 
 close.client <- function(con)
-    invisible(.Call(.client_close, con$socket))
+{
+    if (is_open(con))
+        con <- .Call(.client_close, con$socket)
+    invisible(con)
+}
 
 ##
 ## server
@@ -68,6 +74,8 @@ server <- function(hostname="localhost", port)
     structure(list(socket=server, hostname=hostname, port=port),
               class=c("server", "socketeer"))
 }
+
+setOldClass("server")
 
 listen <- function(server, backlog=5L)
     invisible(.Call(.server_listen, server$socket, backlog))
@@ -86,6 +94,8 @@ accept <- function(server)
               class=c("clientof", "client", "socketeer"))
 }
 
+setOldClass("clientof")
+
 recv.clientof <- function(clientof, buffer_block_size=32768L)
     .Call(.client_recv, clientof$socket, as.integer(buffer_block_size))
 
@@ -94,7 +104,15 @@ send.clientof <- function(clientof, raw)
     invisible(.Call(.client_send, clientof$socket, raw))
 
 close.clientof <- function(con, server)
-    invisible(.Call(.server_close_client, server$socket, con$socket))
+{
+    if (is_open(con))
+        con <- .Call(.server_close_client, server$socket, con$socket)
+    invisible(con)
+}
 
 close.server <- function(con)
-    invisible(.Call(.server_close, con$socket))
+{
+    if (is_open(con))
+        con <- .Call(.server_close, con$socket)
+    invisible(con)
+}
