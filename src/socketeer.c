@@ -22,7 +22,6 @@
 
 static SEXP SOCKETEER_CLIENT_TAG = NULL;
 static SEXP SOCKETEER_SERVER_TAG = NULL;
-static int BUF_SIZE = 32767;
 
 SEXP socketeer_init()
 {
@@ -368,7 +367,6 @@ static void _server_finalizer(SEXP sext)
 SEXP server(SEXP shostname, SEXP sport)
 {
     const char *hostname = CHAR(Rf_asChar(shostname));
-    const int port = Rf_asInteger(sport);
     SEXP sport1 = PROTECT(Rf_asChar(sport));
     const char *service = CHAR(sport1); /* port-as-character */
     struct addrinfo hints, *addr, *a;
@@ -507,9 +505,8 @@ SEXP server_close(SEXP sserver)
 
 Rboolean _is_socketeer(SEXP ssocketeer, Rboolean fail)
 {
-    Rboolean test = _is_client(ssocketeer, FALSE) ||
-        _is_server(ssocketeer, FALSE) ||
-        _is_client(ssocketeer, FALSE);
+    Rboolean test =
+        _is_client(ssocketeer, FALSE) || _is_server(ssocketeer, FALSE);
     if (fail && !test)
         Rf_error("not a 'socketeer' subclass");
     return test;
@@ -540,7 +537,7 @@ SEXP socketeer_fd(SEXP ssocketeer)
 SEXP socketeer_is_open(SEXP ssocketeer)
 {
     (void) _is_socketeer(ssocketeer, TRUE);
-    Rboolean test;
+    Rboolean test = FALSE;
 
     if (_is_client(ssocketeer, FALSE)) {
         struct client *p = _client_ptr(ssocketeer, FALSE);
