@@ -143,8 +143,9 @@ SEXP _recv(int fd, int block_size)
         if (n == 0) {           /* terminated gracefully */
             break;
         } else if (errno == EAGAIN || errno == EWOULDBLOCK)
-            break;              /* blocking */
-        else if (n < 0) {       /* error */
+            if (n > 0) b->used_size += n;
+            break;            /* blocking */
+        else if (n < 0) {     /* error */
             _buffer_free(buffer_head);
             Rf_error("'recv' error:\n  %s", strerror(errno));
         }
