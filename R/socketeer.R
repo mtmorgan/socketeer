@@ -52,7 +52,11 @@ send.client <- function(client, raw)
     invisible(.Call(.client_send, client$socket, raw))
 
 close.client <- function(con)
-    invisible(.Call(.client_close, con$socket))
+{
+    if (is_open(con))
+        con <- .Call(.client_close, con$socket)
+    invisible(con)
+}
 
 ##
 ## server
@@ -94,7 +98,11 @@ send.clientof <- function(clientof, raw)
     invisible(.Call(.client_send, clientof$socket, raw))
 
 close.clientof <- function(con, server)
-    invisible(.Call(.server_close_client, server$socket, con$socket))
+{
+    if (is_open(con))
+        con <- .Call(.server_close_client, server$socket, con$socket)
+    invisible(con)
+}
 
 close.server <- function(con)
     invisible(.Call(.server_close, con$socket))
