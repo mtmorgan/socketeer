@@ -11,6 +11,9 @@ print.socketeer <- function(x, ...)
 ._socketeer_fd <- function(socket)
     .Call(.socketeer_fd, socket)
 
+socketeer_fd <- function(socket)
+    ._socketeer_fd(socket$socket)
+
 hostname <- function(socket)
     socket$hostname
 
