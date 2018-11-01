@@ -25,6 +25,10 @@ extern "C" {
     SEXP server_close_client(SEXP sserver, SEXP sclient);
     SEXP server_close(SEXP sserver);
 
+    /* client/server_local */
+    SEXP client_local(SEXP spath); /* socket(), connect() */
+    SEXP server_local(SEXP spath); /* socket(), bind() */
+
     /* UDP server-side clients */
     /* SEXP server_recvfrom(SEXP sserver); */
     /* SEXP server_sendto(SEXP sserver, SEXP sraw, SEXP sclient); */

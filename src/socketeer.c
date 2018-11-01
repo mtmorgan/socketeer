@@ -15,6 +15,7 @@
 #    include <unistd.h>
 #  endif
 #  include <sys/socket.h>
+#  include <sys/un.h>
 #  include <netinet/in.h>
 #  include <arpa/inet.h>
 #  include <netdb.h>
@@ -136,16 +137,16 @@ SEXP _recv(int fd, int block_size)
     int flags = 0;
 
     for (;;) {
-        do 
+        do
             n = recv(fd, b->block, b->block_size, flags);
         while (n == EINTR);     /* interrupt before receipt */
 
         if (n == 0) {           /* terminated gracefully */
             break;
-        } else if (errno == EAGAIN || errno == EWOULDBLOCK)
+        } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
             if (n > 0) b->used_size += n;
             break;            /* blocking */
-        else if (n < 0) {     /* error */
+        } else if (n < 0) {     /* error */
             _buffer_free(buffer_head);
             Rf_error("'recv' error:\n  %s", strerror(errno));
         }
@@ -367,6 +368,9 @@ static void _server_finalizer(SEXP sext)
 
 SEXP server(SEXP shostname, SEXP sport)
 {
+    (void) _is_character_scalar(shostname, "hostname");
+    (void) _is_integer_scalar_non_negative(sport, "port");
+
     const char *hostname = CHAR(Rf_asChar(shostname));
     SEXP sport1 = PROTECT(Rf_asChar(sport));
     const char *service = CHAR(sport1); /* port-as-character */
@@ -408,6 +412,7 @@ SEXP server(SEXP shostname, SEXP sport)
     SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETEER_SERVER_TAG, NULL));
     R_RegisterCFinalizerEx(sext, _server_finalizer, TRUE);
     UNPROTECT(1);
+
     return sext;
 }
 
@@ -425,8 +430,8 @@ SEXP server_listen(SEXP sext, SEXP sbacklog)
 
 SEXP server_selectfd(SEXP sserver, SEXP stimeout)
 {
-    (void) _is_integer_scalar_non_negative(stimeout, "timeout");
     (void) _is_server(sserver, TRUE);
+    (void) _is_integer_scalar_non_negative(stimeout, "timeout");
     if (!LOGICAL(socketeer_is_open(sserver))[0])
         Rf_error("'server' socket is not open");
 
@@ -552,4 +557,90 @@ SEXP socketeer_is_open(SEXP ssocketeer)
     }
 
     return Rf_ScalarLogical(test);
+}
+
+/*
+
+  server/client_local
+
+ */
+
+Rboolean _client_local_open(const char *pathname, struct client **client_ptr)
+{
+    struct sockaddr_un hints;
+    int errcode = 0, fd = 0;
+
+    memset(&hints, 0, sizeof(struct sockaddr_un));
+    hints.sun_family = AF_UNIX;
+    strncpy(hints.sun_path, pathname, sizeof(hints.sun_path) - 1);
+
+    fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd == -1) {
+        Rf_warning("could not create local socket client:\n  %s",
+                   gai_strerror(fd));
+        return FALSE;
+    }
+
+    errcode = connect(fd, (const struct sockaddr *) &hints, sizeof(hints));
+    if (errcode == -1) {
+        Rf_warning("could not connect to local socket:\n  %s",
+                   gai_strerror(errcode));
+        return FALSE;
+    }
+
+    *client_ptr = _client(fd);
+
+    return TRUE;
+}
+
+SEXP client_local(SEXP spath)
+{
+    _is_character_scalar(spath, "path");
+
+    const char *path = CHAR(Rf_asChar(spath));
+    struct client *client;
+    SEXP ret = NULL;
+
+    Rboolean ok = _client_local_open(path, &client);
+    if (!ok) {
+        UNPROTECT(1);
+        Rf_error("socketeer 'client' failed to open");
+    }
+
+    ret = PROTECT(R_MakeExternalPtr(client, SOCKETEER_CLIENT_TAG, NULL));
+    R_RegisterCFinalizerEx(ret, _client_finalizer, TRUE);
+    UNPROTECT(1);
+
+    return ret;
+}
+
+SEXP server_local(SEXP spath)
+{
+    (void) _is_character_scalar(spath, "path");
+
+    const char *path = CHAR(Rf_asChar(spath));
+    struct sockaddr_un hints;
+    int errcode = 0, fd = 0;
+
+    memset(&hints, 0, sizeof(struct sockaddr_un));
+    hints.sun_family = AF_UNIX;
+    strncpy(hints.sun_path, path, sizeof(hints.sun_path) - 1);
+
+    fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd == -1)
+        Rf_error("could not create local socket server:\n  %s",
+                 gai_strerror(fd));
+
+    errcode = bind(fd, (const struct sockaddr *) &hints, sizeof(hints));
+    if (errcode == -1)
+        Rf_error("could not bind to local socket:\n  %s",
+                 gai_strerror(errcode));
+
+    struct server *p = _server(fd);
+
+    SEXP sext = PROTECT(R_MakeExternalPtr(p, SOCKETEER_SERVER_TAG, NULL));
+    R_RegisterCFinalizerEx(sext, _server_finalizer, TRUE);
+    UNPROTECT(1);
+
+    return sext;
 }

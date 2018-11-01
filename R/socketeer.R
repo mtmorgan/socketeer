@@ -109,3 +109,35 @@ close.clientof <- function(con, server)
 
 close.server <- function(con)
     invisible(.Call(.server_close, con$socket))
+
+##
+## client/server_local
+##
+
+client_local <- function(path = tempfile(fileext=".socketeer"))
+{
+    stopifnot(is(path, "character"), length(path) == 1L, nzchar(path))
+    client <- .Call(.client_local, path)
+    structure(
+        list(socket=client, path = path),
+        class=c("local", "client", "socketeer")
+    )
+}
+
+server_local <- function(path = tempfile(fileext = ".socketeer"))
+{
+    stopifnot(is(path, "character"), length(path) == 1L, nzchar(path))
+    server <- .Call(.server_local, path)
+    structure(
+        list(socket=server, path = path),
+        class=c("local", "server", "socketeer")
+    )
+}
+
+print.local <- function(x, ...)
+{
+    cat(
+        class(x)[1], " is_open: ", is_open(x), "\n",
+        sep = ""
+    )
+}

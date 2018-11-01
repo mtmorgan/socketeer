@@ -21,6 +21,10 @@ static const R_CallMethodDef callMethods[] = {
     {".server_close_client", (DL_FUNC) &server_close_client, 2},
     {".server_close", (DL_FUNC) &server_close, 1},
 
+    /* client_local */
+    {".client_local", (DL_FUNC) &client_local, 1},
+    {".server_local", (DL_FUNC) &server_local, 1},
+
     /* UDP server-side clients */
     /* {".server_recvfrom", (DL_FUNC) &server_recvfrom, 2}, */
     /* {".server_sendto", (DL_FUNC) &server_sendto, 3}, */

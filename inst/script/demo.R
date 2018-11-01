@@ -24,7 +24,7 @@ listen(srv)
 pid <- remote_client(port)
 selectfd(srv)
 clientof_srv <- accept(srv)
-o
+
 send(clientof_srv, serialize("foo", NULL))
 send(clientof_srv, serialize("bars", NULL))
 send(clientof_srv, serialize(raw(), NULL))
@@ -62,7 +62,7 @@ unserialize(recv(clientof_srv))
 send(clientof_srv, serialize("bars", NULL))
 unserialize(recv(clientof_srv))
 
-x <- seq_len(1e8)
+x <- seq_len(1e8)                       # 'large' data
 send(clientof_srv, serialize(x, NULL))
 length(value <- unserialize(recv(clientof_srv)))
 
@@ -78,9 +78,7 @@ srv <- server(port = port)
 listen(srv)
 
 n <- 10
-pids <- replicate(n, simplify = FALSE, {
-    echo_client(port)
-})
+pids <- replicate(n, simplify = FALSE, echo_client(port))
 clientsof_srv <- replicate(n, simplify = FALSE, {
     selectfd(srv)
     accept(srv)
@@ -117,9 +115,7 @@ srv <- server(port = port)
 listen(srv)
 
 n <- 50
-pids <- replicate(n, simplify = FALSE, {
-    sleepy_client(port)
-})
+pids <- replicate(n, simplify = FALSE, sleepy_client(port))
 clientsof_srv <- replicate(n, simplify = FALSE, {
     selectfd(srv)
     accept(srv)
@@ -136,5 +132,47 @@ vapply(seq_along(clientsof_srv), function(...) {
 for (client in clientsof_srv)
     send(client, serialize("DONE", NULL))
 length(mccollect(pids, timeout=5))
+
+close(srv)
+
+## client/server_local
+
+echo_client_local <- function(path)
+{
+    mcparallel({
+        cl <- client_local(path)
+        repeat {
+            msg <- unserialize(recv(cl))
+            if (identical(msg, "DONE"))
+                break
+            send(cl, serialize(msg, NULL))
+        }
+        close(cl)
+    })
+}
+
+path <- tempfile(fileext=".sktr")
+srv <- server_local(path = path)
+listen(srv)
+
+pid <- echo_client_local(path)
+selectfd(srv)
+clientof_srv <- accept(srv)
+
+send(clientof_srv, serialize("foo", NULL))
+unserialize(recv(clientof_srv))
+
+send(clientof_srv, serialize("bars", NULL))
+unserialize(recv(clientof_srv))
+
+x <- as.integer(as.character(seq_len(1e2)))           # 'large' data
+system.time(serialize(x, NULL))
+system.time({
+    send(clientof_srv, serialize(x, NULL))
+    length(value <- unserialize(recv(clientof_srv)))
+})
+
+send(clientof_srv, serialize("DONE", NULL))
+mccollect(pid)
 
 close(srv)
