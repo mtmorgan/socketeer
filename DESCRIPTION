@@ -1,5 +1,5 @@
 Package: socketeer
-Title: Interface to Linux-style TCP sockets.
+Title: Interface to Linux-style TCP sockets
 Version: 0.0.1
 Authors@R: person("Martin", "Morgan",
     email = "martin.morgan@roswellpark.org",
@@ -10,4 +10,7 @@ Description: This package is a simple implementation of TCP
     bind(), listen(), select(), accept(), recv(), send(), and close().
 License: Artistic-2.0
 Depends: R (>= 3.3.0)
+Imports: methods
 Suggests: testthat
+Encoding: UTF-8
+RoxygenNote: 6.1.0

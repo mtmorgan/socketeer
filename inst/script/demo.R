@@ -142,10 +142,10 @@ echo_client_local <- function(path)
     mcparallel({
         cl <- client_local(path)
         repeat {
-            msg <- unserialize(recv(cl))
+            msg <- recv(cl)
             if (identical(msg, "DONE"))
                 break
-            send(cl, serialize(msg, NULL))
+            send(cl, msg)
         }
         close(cl)
     })
@@ -159,17 +159,17 @@ pid <- echo_client_local(path)
 selectfd(srv)
 clientof_srv <- accept(srv)
 
-send(clientof_srv, serialize("foo", NULL))
-unserialize(recv(clientof_srv))
+send(clientof_srv, "foo")
+recv(clientof_srv)
 
-send(clientof_srv, serialize("bars", NULL))
-unserialize(recv(clientof_srv))
+(send(clientof_srv, "bars"))
+recv(clientof_srv)
 
-x <- as.integer(as.character(seq_len(1e2)))           # 'large' data
+x <- raw(1e4)           # 'large' data
 system.time(serialize(x, NULL))
 system.time({
-    send(clientof_srv, serialize(x, NULL))
-    length(value <- unserialize(recv(clientof_srv)))
+    print(send(clientof_srv, x))
+    length(value <- recv(clientof_srv))
 })
 
 send(clientof_srv, serialize("DONE", NULL))
