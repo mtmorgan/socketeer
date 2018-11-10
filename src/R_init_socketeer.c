@@ -1,6 +1,7 @@
 #include <R_ext/Rdynload.h>
 #include <Rinternals.h>
 #include "socketeer.h"
+#include "connection.h"
 
 static const R_CallMethodDef callMethods[] = {
     {".socketeer_init", (DL_FUNC) &socketeer_init, 0},
@@ -24,6 +25,14 @@ static const R_CallMethodDef callMethods[] = {
     /* client_local */
     {".client_local", (DL_FUNC) &client_local, 1},
     {".server_local", (DL_FUNC) &server_local, 1},
+
+    /* connections */
+    {".connection_local_server", (DL_FUNC) &connection_local_server, 4},
+    {".connection_server_selectfd", (DL_FUNC) &connection_server_selectfd, 2},
+    {".connection_server_accept", (DL_FUNC) &connection_server_accept, 1},
+
+    {".connection_local_client", (DL_FUNC) &connection_local_client, 3},
+    {".connection_local_client_fd", (DL_FUNC) &connection_local_client_fd, 1},
 
     /* UDP server-side clients */
     /* {".server_recvfrom", (DL_FUNC) &server_recvfrom, 2}, */

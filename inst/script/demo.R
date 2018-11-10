@@ -137,15 +137,17 @@ close(srv)
 
 ## client/server_local
 
+devtools::load_all()
 echo_client_local <- function(path)
 {
-    mcparallel({
+    parallel::mcparallel({
         cl <- client_local(path)
         repeat {
             msg <- recv(cl)
+            message(msg)
             if (identical(msg, "DONE"))
                 break
-            send(cl, msg)
+            ## send(cl, msg)
         }
         close(cl)
     })
@@ -160,12 +162,16 @@ selectfd(srv)
 clientof_srv <- accept(srv)
 
 send(clientof_srv, "foo")
-recv(clientof_srv)
+## recv(clientof_srv)
 
-(send(clientof_srv, "bars"))
-recv(clientof_srv)
+send(clientof_srv, "bars")
+## recv(clientof_srv)
 
-x <- raw(1e4)           # 'large' data
+(send(clientof_srv, raw(1e5)))
+## length(recv(clientof_srv))
+
+
+x <- raw(10000)           # 'large' data
 system.time(serialize(x, NULL))
 system.time({
     print(send(clientof_srv, x))

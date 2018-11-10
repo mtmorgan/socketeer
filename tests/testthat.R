@@ -1,4 +1,4 @@
 library(testthat)
-library(sockets)
+library(socketeer)
 
-test_check("sockets")
+test_check("socketeer")
