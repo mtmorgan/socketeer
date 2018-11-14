@@ -27,7 +27,7 @@
 /* shared */
 
 struct skt {
-    short fd;
+    short fd, active_fd;
     int timeout;
     /* server only */
     fd_set active_fds;
@@ -38,11 +38,10 @@ struct skt * _skt(short fd, int timeout, int backlog)
 {
     struct skt *p = Calloc(1, struct skt);
 
-    p->fd = fd;
+    p->fd = p->active_fd = fd;
     p->timeout = timeout;
     /* server only */
     FD_ZERO(&p->active_fds);
-    FD_SET(p->fd, &p->active_fds);
     p->backlog = backlog;
 
     return p;
@@ -137,7 +136,7 @@ Rboolean socketeer_local_open_client(Rconnection ptr)
     }
 
     struct skt *client = (struct skt *) ptr->private;
-    client->fd = fd;
+    client->fd = client->active_fd = fd;
     ptr->isopen = TRUE;
     ptr->blocking = FALSE;
 
@@ -149,18 +148,21 @@ Rboolean socketeer_local_open_client(Rconnection ptr)
 size_t socketeer_read(void *buf, size_t size, size_t n, Rconnection ptr)
 {
     struct skt *skt = (struct skt *) ptr->private;
-    return skt_recv(buf, size, n, skt->fd);
+    return skt_recv(buf, size, n, skt->active_fd);
 }
 
 size_t socketeer_write(const void *buf, size_t size, size_t n, Rconnection ptr)
 {
     struct skt *skt = (struct skt *) ptr->private;
-    return skt_send(buf, size, n, skt->fd);
+    return skt_send(buf, size, n, skt->active_fd);
 }
 
 void socketeer_close(Rconnection ptr)
 {
     struct skt *skt = (struct skt *) ptr->private;
+    for (int fd = 0; fd < FD_SETSIZE; ++fd)
+        if (FD_ISSET(fd, &skt->active_fds))
+            close(fd);
     if (skt->fd != 0) {
         close(skt->fd);
         skt->fd = 0;
@@ -197,7 +199,7 @@ SEXP connection_local_client_fd(SEXP con)
 {
     Rconnection ptr = R_GetConnection(con);
     struct skt *client = (struct skt *) ptr->private;
-    return Rf_ScalarInteger(client->fd);
+    return Rf_ScalarInteger(client->active_fd);
 }
 
 SEXP connection_local_client(SEXP path, SEXP mode, SEXP timeout)
@@ -297,9 +299,16 @@ SEXP connection_server_accept(SEXP con)
     client_fd = accept(srv->fd, (struct sockaddr *) &sockaddr, &len);
     if (client_fd < 0)
         Rf_error("could not 'accept' on socket:\n  %s", strerror(errno));
-    Rprintf("selected fd: %d\n", client_fd);
     FD_SET(client_fd, &srv->active_fds);
 
-    return _local_client("clientof", ptr->description, ptr->mode, client_fd,
-                         TRUE, srv->timeout);
+    return Rf_ScalarInteger(client_fd);
+}
+
+SEXP connection_server_set_activefd(SEXP con, SEXP fd)
+{
+    Rconnection ptr = R_GetConnection(con);
+    struct skt *skt = (struct skt *) ptr->private;
+    skt->active_fd = Rf_asInteger(fd);
+
+    return con;
 }

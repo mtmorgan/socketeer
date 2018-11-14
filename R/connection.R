@@ -34,4 +34,13 @@ connection_server_accept <-
     .Call(.connection_server_accept, srv)
 }
 
-
+connection_server_set_activefd <-
+    function(srv, fd)
+{
+    stopifnot(
+        is(srv, "local_server"),
+        is_scalar_integer(fd)
+    )
+    srv <- .Call(.connection_server_set_activefd, srv, fd)
+    invisible(srv)
+}
