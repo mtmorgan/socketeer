@@ -230,7 +230,7 @@ SEXP connection_local_server(SEXP path, SEXP mode, SEXP timeout, SEXP backlog)
     return con;
 }
 
-SEXP connection_server_selectfd(SEXP con, SEXP timeout)
+SEXP connection_server_selectfd(SEXP con, SEXP mode)
 {
     Rconnection ptr = R_GetConnection(con);
     struct skt *srv = (struct skt *) ptr->private;
@@ -239,48 +239,27 @@ SEXP connection_server_selectfd(SEXP con, SEXP timeout)
     struct timeval tv;
     int n = 0;
 
-    tv.tv_sec = Rf_asInteger(timeout);
+    tv.tv_sec = srv->timeout;
     tv.tv_usec = 0;
 
-    SEXP res = PROTECT(Rf_allocVector(VECSXP, 3));
-    SET_VECTOR_ELT(res, 0, Rf_allocVector(LGLSXP, 2));
-    int *server = LOGICAL(VECTOR_ELT(res,0));
-
-    /* read fds */
-    if ((n = select(FD_SETSIZE, &fds, NULL, NULL, &tv)) < 0)
+    if (CHAR(Rf_asChar(mode))[0] == 'r')
+        n = select(FD_SETSIZE, &fds, NULL, NULL, &tv);
+    else
+        n = select(FD_SETSIZE, NULL, &fds, NULL, &tv);
+    if (n < 0)
         Rf_error("'selectfd' failed:\n  %s", strerror(errno));
 
     int i_rec = 0;
     for (int i = 0; i < FD_SETSIZE; ++i)
-        if (FD_ISSET(i, &fds) && i != srv->fd)
+        if (FD_ISSET(i, &fds) && FD_ISSET(i, &srv->active_fds))
             i_rec += 1;
 
-    SET_VECTOR_ELT(res, 1, Rf_allocVector(INTSXP, i_rec));
-    int *clients = INTEGER(VECTOR_ELT(res, 1));
-
-    server[0] = FD_ISSET(srv->fd, &fds);
-    i_rec = 0;
-    for (int i = 0; i < FD_SETSIZE; ++i)
-        if (i != srv->fd && FD_ISSET(i, &fds))
-            clients[i_rec++] = i;
-
-    /* write */
-    fds = srv->active_fds;
-    if ((n = select(FD_SETSIZE, NULL, &fds, NULL, &tv)) < 0)
-        Rf_error("'selectfd' failed:\n  %s", strerror(errno));
+    SEXP res = PROTECT(Rf_allocVector(INTSXP, i_rec));
+    int *clients = INTEGER(res);
 
     i_rec = 0;
     for (int i = 0; i < FD_SETSIZE; ++i)
-        if (FD_ISSET(i, &fds) && i != srv->fd)
-            i_rec += 1;
-
-    SET_VECTOR_ELT(res, 2, Rf_allocVector(INTSXP, i_rec));
-    clients = INTEGER(VECTOR_ELT(res, 2));
-
-    server[1] = FD_ISSET(srv->fd, &fds);
-    i_rec = 0;
-    for (int i = 0; i < FD_SETSIZE; ++i)
-        if (i != srv->fd && FD_ISSET(i, &fds))
+        if (FD_ISSET(i, &fds) && FD_ISSET(i, &srv->active_fds))
             clients[i_rec++] = i;
 
     UNPROTECT(1);
