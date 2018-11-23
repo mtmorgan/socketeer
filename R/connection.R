@@ -104,23 +104,22 @@ local_cluster <-
         is_scalar_integer(timeout),
         timeout >= 0L
     )
-    srv <- new.env(parent = emptyenv())
-    srv$con <- NULL
-    srv$fds <- integer()
+
+    fields <- list(
+        con = NULL, fds = integer(), n = n, timeout = timeout,
+        client = client, client_id = client_id
+    )
     structure(
-        list(
-            srv = srv, n = n, timeout = timeout,
-            client = client, client_id = client_id
-        ),
+        list2env(fields, parent=emptyenv()),
         class = "local_cluster"
     )
 }
 
 .con <- function(x)
-    x$srv$con
+    x$con
 
 .fds <- function(x)
-    x$srv$fds
+    x$fds
 
 #' @export
 size <-
@@ -161,7 +160,7 @@ start <-
     n <- x$n
 
     path <- tempfile(fileext = ".skt")
-    x$srv$con <- connection_local_server(
+    x$con <- connection_local_server(
         path, timeout=x$timeout, backlog = min(n, 128L)
     )
     open(.con(x), "w+b")
@@ -176,7 +175,7 @@ start <-
             replicate(n0, connection_server_accept(.con(x)), simplify = TRUE)
         )
     }
-    x$srv$fds <- fds
+    x$fds <- fds
 
     invisible(x)
 }

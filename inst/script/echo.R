@@ -29,7 +29,7 @@ for (i in seq_len(size(srv) * k)) {
         res0 <- recv(srv)
         stopifnot(identical(value, res0$value))
         res[[i]] <- res0$fd
-        send1(srv, match(res0$fd, .fds(srv)), value)
+        send1(srv, res0$i, value)
     }
 }
 for (i in seq_len(size(srv))) {
@@ -69,7 +69,7 @@ for (i in seq_len(size(srv) * k)) {
     } else {
         res0 <- recv(srv)
         res[[i]] <- res0$value
-        send1(srv, match(res0$fd, .fds(srv)), i)
+        send1(srv, res0$i, i)
     }
 }
 for (i in seq_len(size(srv)))
