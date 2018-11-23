@@ -27,8 +27,10 @@ local_cluster <-
         con = NULL, n = n, timeout = timeout,
         fds = integer(), client = client, client_id = client_id
     )
+    env <- new.env(parent=emptyenv())
+    reg.finalizer(env, close.local_cluster, TRUE)
     structure(
-        list2env(fields, parent=emptyenv()),
+        list2env(fields, env),
         class = "local_cluster"
     )
 }
