@@ -55,9 +55,46 @@ connection_server_set_activefd <-
     invisible(srv)
 }
 
-#' @export 
+#' @importFrom parallel detectCores
+.local_cluster_cores <-
+    function()
+{
+    if (identical(.Platform$OS.type, "windows"))
+        return(1L)
+
+    cores <- max(1L, parallel::detectCores() - 2L)
+    getOption("mc.cores", cores)
+}
+
+#' @export
+local_client <-
+    function(path)
+{
+    connection_local_client(path)
+}
+
+#' @importFrom parallel mcparallel
+#' @export
+echo_client <-
+    function(path)
+{
+    mcparallel({
+        con <- local_client(path)
+        open(con, "w+b")
+        repeat {
+            msg <- unserialize(con)
+            if (identical(msg, "DONE"))
+                break
+            serialize(msg, con)
+        }
+        close(con)
+    }, detached = TRUE)
+}
+
+#' @export
 local_cluster <-
-    function(n, timeout, client)
+    function(n = .local_cluster_cores(), timeout = 30L * 24L * 60L * 60L,
+             client = echo_client, client_id = "echo")
 {
     n <- as.integer(n)
     timeout <- as.integer(timeout)
@@ -67,50 +104,82 @@ local_cluster <-
         is_scalar_integer(timeout),
         timeout >= 0L
     )
+    srv <- new.env(parent = emptyenv())
+    srv$con <- NULL
+    srv$fds <- integer()
     structure(
         list(
-            con = NULL, n = n, timeout = timeout,
-            fds = integer(), client = client
+            srv = srv, n = n, timeout = timeout,
+            client = client, client_id = client_id
         ),
         class = "local_cluster"
     )
 }
 
+.con <- function(x)
+    x$srv$con
+
+.fds <- function(x)
+    x$srv$fds
+
 #' @export
 size <-
-    function(srv)
+    function(x)
 {
-    stopifnot(is(srv, "local_cluster"))
-    srv$n
+    stopifnot(is(x, "local_cluster"))
+    x$n
+}
+
+#' @export
+isup <-
+    function(x)
+{
+    stopifnot(is(x, "local_cluster"))
+    status <- tryCatch(summary(.con(x))$opened, error = function(...) NULL)
+    identical(status, "opened")
+}
+
+#' @export
+print.local_cluster <-
+    function(x, ...)
+{
+    cat(
+        "class: ", class(x)[1], "\n",
+        "client_id: ", x$client_id, "\n",
+        "timeout: ", x$timeout, " seconds\n",
+        "size(): ", size(x), "\n",
+        "isup(): ", isup(x), "\n",
+        sep = ""
+    )
 }
 
 #' @export
 start <-
-    function(srv)
+    function(x)
 {
-    stopifnot(is(srv, "local_cluster"))
-    n <- srv$n
+    stopifnot(!isup(x))
+    n <- x$n
 
     path <- tempfile(fileext = ".skt")
-    srv$con <- connection_local_server(
-        path, timeout=srv$timeout, backlog = min(n, 128L)
+    x$srv$con <- connection_local_server(
+        path, timeout=x$timeout, backlog = min(n, 128L)
     )
-    open(srv$con, "w+b")
+    open(.con(x), "w+b")
 
     fds <- NULL
     while (n > 0L) {
         n0 <- min(n, 128L)              # maximum backlog 128
         n <- n - n0
-        replicate(n0, srv$client(path), simplify=FALSE)
+        replicate(n0, x$client(path), simplify=FALSE)
         fds <- c(
             fds,
-            replicate(n0, connection_server_accept(srv$con), simplify = TRUE)
+            replicate(n0, connection_server_accept(.con(x)), simplify = TRUE)
         )
     }
-    srv$fds <- fds
+    x$srv$fds <- fds
 
-    srv
-}        
+    invisible(x)
+}
 
 .send1 <-
     function(con, fd, value)
@@ -121,17 +190,17 @@ start <-
 
 #' @export
 send1 <-
-    function(srv, i, value)
+    function(x, i, value)
 {
     i <- as.integer(i)
     stopifnot(
-        is(srv, "local_cluster"),
+        isup(x),
         is_scalar_integer(i),
-        i > 0L && i <= length(srv$fds)
+        i > 0L && i <= length(.fds(x))
     )
 
-    .send1(srv$con, srv$fds[[i]], value)
-    invisible(srv)
+    .send1(.con(x), .fds(x)[[i]], value)
+    invisible(x)
 }
 
 .recv1 <-
@@ -143,24 +212,31 @@ send1 <-
 
 #' @export
 recv <-
-    function(srv)
+    function(x)
 {
-    fd <- connection_server_selectfd(srv$con)[[1]]
-    if (!length(fd))
-        stop("'recv()' timeout after ", srv$timeout, " seconds")
+    stopifnot(isup(x))
+    fd <- connection_server_selectfd(.con(x))
+    if (!length(fd)) {
+        stop("'recv()' timeout after ", x$timeout, " seconds")
+    }
+    fd <- fd[sample.int(length(fd), 1L)]
 
-    .recv1(srv$con, fd)
+    value <- .recv1(.con(x), fd)
+    structure(
+        list(fd = fd, value = value),
+        class = "local_server_recv"
+    )
 }
 
 #' @export
 stop_cluster <-
-    function(srv)
+    function(x)
 {
-    stopifnot(is(srv, "local_cluster"))
+    stopifnot(isup(x))
 
-    for (fd in srv$fds)
-        .send1(srv$con, fd, "DONE")
-    close(srv$con)
+    for (fd in .fds(x))
+        .send1(.con(x), fd, "DONE")
+    close(.con(x))
 
-    invisible(srv)
+    invisible(x)
 }
