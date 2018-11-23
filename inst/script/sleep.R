@@ -4,14 +4,13 @@ devtools::load_all()
 sleepy_client <- function(path)
 {
     parallel::mcparallel({
-        con <- local_client(path)
-        open(con, "w+b")
+        con <- open(local_client(path))
         repeat {
-            msg <- unserialize(con)
+            msg <- recv(con)
             if (identical(msg, "DONE"))
                 break
             Sys.sleep(msg)
-            serialize(msg, con)
+            send(con, msg)
         }
         close(con)
     }, detached = TRUE)
@@ -19,14 +18,14 @@ sleepy_client <- function(path)
 
 n <- 200
 srv <- local_cluster(n, client = sleepy_client, client_id = "sleepy")
-start_cluster(srv)
+open(srv)
 
 sleep <- sample(5, n, TRUE)
 for (i in seq_len(size(srv)))
-    send1(srv, i, sleep[i])
+    send(srv, i, sleep[i])
 system.time({
     res <- replicate(size(srv), recv(srv)$value)
 })
 rle(res)
 
-stop_cluster(srv)
+close(srv)
