@@ -68,9 +68,9 @@ connection_server_set_activefd <-
 
 #' @export
 local_client <-
-    function(path)
+    function(path, timeout = 30L)
 {
-    connection_local_client(path)
+    connection_local_client(path, timeout = timeout)
 }
 
 #' @importFrom parallel mcparallel
@@ -223,20 +223,31 @@ recv <-
 
     value <- .recv1(.con(x), fd)
     structure(
-        list(fd = fd, value = value),
+        list(i = match(fd, .fds(x)), fd = fd, value = value),
         class = "local_server_recv"
     )
+}
+
+#' @export
+print.local_server_recv <-
+    function(x)
+{
+    cat(
+        "recv from client ", x$i, " (fd ", x$fd, "):\n",
+        sep=""
+    )
+    print(x$value)
 }
 
 #' @export
 stop_cluster <-
     function(x)
 {
-    stopifnot(isup(x))
-
-    for (fd in .fds(x))
-        .send1(.con(x), fd, "DONE")
-    close(.con(x))
+    if (isup(x)) {
+        for (fd in .fds(x))
+            .send1(.con(x), fd, "DONE")
+        close(.con(x))
+    }
 
     invisible(x)
 }
