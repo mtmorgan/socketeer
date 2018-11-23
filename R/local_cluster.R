@@ -1,4 +1,3 @@
-
 #' @export
 local_cluster <-
     function(n = .local_cluster_cores(), timeout = 30L * 24L * 60L * 60L,
@@ -102,8 +101,7 @@ send1 <-
     i <- as.integer(i)
     stopifnot(
         isup(x),
-        is_scalar_integer(i),
-        i > 0L && i <= length(.fds(x))
+        is_scalar_integer(i), i > 0L && i <= length(.fds(x))
     )
 
     .send1(.con(x), .fds(x)[[i]], value)
@@ -133,6 +131,20 @@ recv <-
         list(i = match(fd, .fds(x)), fd = fd, value = value),
         class = "local_server_recv"
     )
+}
+
+.recv_is_error <- function(x)
+    is(x$value, "try-error")
+
+.recv_stop_on_errors <-
+    function(x, id)
+{
+    errors <- vapply(x, .recv_is_error, logical(1))
+    if (any(errors))
+        stop(
+            "'", id, "' had ", sum(errors), " client error(s); first error:\n",
+            x[which.max(errors)]$value
+        )
 }
 
 #' @export
