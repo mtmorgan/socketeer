@@ -18,9 +18,8 @@ sleepy_client <- function(path)
 }
 
 n <- 200
-srv <-
-    local_cluster(n, timeout = 3L, client = sleepy_client, client_id = "sleepy")
-start(srv)
+srv <- local_cluster(n, client = sleepy_client, client_id = "sleepy")
+start_cluster(srv)
 
 sleep <- sample(5, n, TRUE)
 for (i in seq_len(size(srv)))

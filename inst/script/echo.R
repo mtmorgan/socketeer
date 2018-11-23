@@ -18,7 +18,7 @@ echo_client <- function(path)
 
 n <- 10; k = 20; value <- raw(1e7)
 srv <- local_cluster(n, timeout = 3L, client = echo_client)
-start(srv)
+start_cluster(srv)
 
 res <- integer(n * k)
 system.time({
@@ -60,7 +60,7 @@ pid_client <- function(path)
 
 n <- 5; k <- 2000
 srv <- local_cluster(n, timeout = 3L, client = pid_client, client_id = "pid")
-start(srv)
+start_cluster(srv)
 
 res <- integer(n * k)
 for (i in seq_len(size(srv) * k)) {

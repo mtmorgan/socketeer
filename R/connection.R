@@ -153,7 +153,7 @@ print.local_cluster <-
 }
 
 #' @export
-start <-
+start_cluster <-
     function(x)
 {
     stopifnot(!isup(x))
