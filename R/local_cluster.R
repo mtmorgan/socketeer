@@ -28,7 +28,7 @@ local_cluster <-
         fds = integer(), client = client, client_id = client_id
     )
     env <- new.env(parent=emptyenv())
-    reg.finalizer(env, close.local_cluster, TRUE)
+    ## reg.finalizer(env, .finalize_local_cluster, TRUE)
     structure(
         list2env(fields, env),
         class = "local_cluster"
@@ -169,8 +169,7 @@ print.local_cluster_recv <-
     print(x$value)
 }
 
-#' @export
-close.local_cluster <-
+.finalize_local_cluster <-
     function(x)
 {
     if (isup(x)) {
@@ -178,6 +177,13 @@ close.local_cluster <-
             .send_local_cluster(.con(x), fd, "DONE")
         close(.con(x))
     }
+    invisible(NULL)
+}
 
+#' @export
+close.local_cluster <-
+    function(x)
+{
+    .finalize_local_cluster(x)
     invisible(x)
 }
