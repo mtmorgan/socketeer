@@ -10,7 +10,6 @@ static const R_CallMethodDef callMethods[] = {
     {".connection_server_set_activefd", (DL_FUNC) &connection_server_set_activefd, 2},
 
     {".connection_local_client", (DL_FUNC) &connection_local_client, 3},
-    {".connection_local_client_fd", (DL_FUNC) &connection_local_client_fd, 1},
 
     {NULL, NULL, 0}
 };

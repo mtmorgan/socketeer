@@ -53,8 +53,7 @@ echo_client <-
     function(path)
 {
     mcparallel({
-        client <- local_client(path)
-        open(client)
+        client <- open(local_client(path))
         repeat {
             msg <- recv(client)
             if (identical(msg, "DONE"))

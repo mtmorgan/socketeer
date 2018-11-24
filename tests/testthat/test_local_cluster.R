@@ -10,7 +10,7 @@ test_that("open() / close() / isup() work", {
     expect_identical(FALSE, isup(close(srv)))
     ## finalizer
     ## expect_true({
-    ##     open(local_cluster()); open(local_cluster()); gc(); gc()
+    ##open(local_cluster(2L)); open(local_cluster(2L)); gc(); gc()
     ##     TRUE
     ## })
 })

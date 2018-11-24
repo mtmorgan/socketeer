@@ -28,7 +28,7 @@ local_cluster <-
         fds = integer(), client = client, client_id = client_id
     )
     env <- new.env(parent=emptyenv())
-    ## reg.finalizer(env, .finalize_local_cluster, TRUE)
+    reg.finalizer(env, .finalize_local_cluster, TRUE)
     structure(
         list2env(fields, env),
         class = "local_cluster"
@@ -80,7 +80,6 @@ open.local_cluster <-
     path <- tempfile(fileext = ".skt")
     n <- con$n
     con$con <- local_server(path, timeout=con$timeout, backlog = min(n, 128L))
-
     open(.con(con), "w+b")
 
     fds <- NULL

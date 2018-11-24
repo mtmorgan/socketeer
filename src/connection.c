@@ -167,6 +167,7 @@ void socketeer_close(Rconnection ptr)
         close(skt->fd);
         skt->fd = 0;
     }
+    ptr->isopen = FALSE;
 }
 
 void socketeer_destroy(Rconnection ptr)
@@ -175,58 +176,41 @@ void socketeer_destroy(Rconnection ptr)
     ptr->private = NULL;
 }
 
-SEXP _local_client(const char *class, const char *path, const char *mode,
-                   const int fd, Rboolean isopen, int timeout)
+SEXP _connection_local(const char *path, const char *mode, const char *class,
+                       Rconnection *ptr)
 {
-    Rconnection ptr = NULL;
-    SEXP con = R_new_custom_connection(path, mode, class, &ptr);
-    PROTECT(con);
+    SEXP con = R_new_custom_connection(path, mode, class, ptr);
+    (*ptr)->text = FALSE;
+    (*ptr)->close = socketeer_close;
+    (*ptr)->destroy = socketeer_destroy;
+    (*ptr)->read = socketeer_read;
+    (*ptr)->write = socketeer_write;
 
-    ptr->text = FALSE;
-    ptr->private = (void *) _skt(fd, timeout, 0);
-    ptr->open = socketeer_local_open_client;
-    ptr->close = socketeer_close;
-    ptr->destroy = socketeer_destroy;
-    ptr->read = socketeer_read;
-    ptr->write = socketeer_write;
-    ptr->isopen = isopen;
-
-    UNPROTECT(1);
     return con;
-}
-
-SEXP connection_local_client_fd(SEXP con)
-{
-    Rconnection ptr = R_GetConnection(con);
-    struct skt *client = (struct skt *) ptr->private;
-    return Rf_ScalarInteger(client->active_fd);
 }
 
 SEXP connection_local_client(SEXP path, SEXP mode, SEXP timeout)
 {
-    return _local_client(
-        "local_client", CHAR(STRING_ELT(path, 0)), CHAR(STRING_ELT(mode, 0)),
-        0, FALSE, Rf_asInteger(timeout));
+    Rconnection ptr = NULL;
+    SEXP con = _connection_local(
+        CHAR(STRING_ELT(path, 0)), CHAR(STRING_ELT(mode, 0)), "local_client", 
+        &ptr);
+    ptr->open = socketeer_local_open_client;
+    ptr->private = (void *) _skt(0, Rf_asInteger(timeout), 0);
+
+    return con;
 }
 
 SEXP connection_local_server(SEXP path, SEXP mode, SEXP timeout, SEXP backlog)
 {
     Rconnection ptr = NULL;
-    SEXP con = R_new_custom_connection(
+    SEXP con = _connection_local(
         CHAR(STRING_ELT(path, 0)), CHAR(STRING_ELT(mode, 0)), "local_server",
         &ptr);
-    PROTECT(con);
-
-    ptr->text = FALSE;
+    ptr->open = socketeer_local_open_server;
     ptr->private =
         (void *) _skt(0, Rf_asInteger(timeout), Rf_asInteger(backlog));
-    ptr->open = socketeer_local_open_server;
-    ptr->close = socketeer_close;
-    ptr->destroy = socketeer_destroy;
-    ptr->read = socketeer_read;
-    ptr->write = socketeer_write;
 
-    UNPROTECT(1);
     return con;
 }
 
