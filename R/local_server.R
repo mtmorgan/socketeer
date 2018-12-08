@@ -27,6 +27,14 @@ local_server_accept <-
     .Call(.connection_server_accept, srv)
 }
 
+local_server_activefds <-
+    function(srv)
+{
+    stopifnot(is(srv, "local_server"))
+
+    .Call(.connection_server_activefds, srv);
+}
+
 local_server_selectfd <-
     function(srv, mode = c("r", "w"))
 {
@@ -45,4 +53,25 @@ local_server_set_activefd <-
     )
     srv <- .Call(.connection_server_set_activefd, srv, fd)
     invisible(srv)
+}
+
+isup.local_server <-
+    function(x)
+{
+    status <- tryCatch(summary(x)$opened, error = function(...) NULL)
+    identical(status, "opened")
+}
+
+send.local_server <-
+    function(x, fd, value)
+{
+    local_server_set_activefd(x, fd)
+    serialize(value, x)
+}
+
+recv.local_server <-
+    function(x, fd)
+{
+    local_server_set_activefd(x, fd)
+    unserialize(x)
 }

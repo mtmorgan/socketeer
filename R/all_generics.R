@@ -7,7 +7,7 @@ isup <- function(x)
     UseMethod("isup")
 
 #' @export
-recv <- function(x)
+recv <- function(x, ...)
     UseMethod("recv")
 
 #' @export

@@ -193,7 +193,7 @@ SEXP connection_local_client(SEXP path, SEXP mode, SEXP timeout)
 {
     Rconnection ptr = NULL;
     SEXP con = _connection_local(
-        CHAR(STRING_ELT(path, 0)), CHAR(STRING_ELT(mode, 0)), "local_client", 
+        CHAR(STRING_ELT(path, 0)), CHAR(STRING_ELT(mode, 0)), "local_client",
         &ptr);
     ptr->open = socketeer_local_open_client;
     ptr->private = (void *) _skt(0, Rf_asInteger(timeout), 0);
@@ -265,6 +265,28 @@ SEXP connection_server_accept(SEXP con)
     FD_SET(client_fd, &srv->active_fds);
 
     return Rf_ScalarInteger(client_fd);
+}
+
+SEXP connection_server_activefds(SEXP con)
+{
+    Rconnection ptr = R_GetConnection(con);
+    struct skt *srv = (struct skt *) ptr->private;
+
+    int n = 0;
+    for (int i = 0; i < FD_SETSIZE; ++i)
+        if (FD_ISSET(i, &srv->active_fds))
+            n += 1;
+
+    SEXP res = PROTECT(Rf_allocVector(INTSXP, n));
+    int *clients = INTEGER(res);
+
+    n = 0;
+    for (int i = 0; i < FD_SETSIZE; ++i)
+        if (FD_ISSET(i, &srv->active_fds))
+            clients[n++] = i;
+
+    UNPROTECT(1);
+    return res;
 }
 
 SEXP connection_server_set_activefd(SEXP con, SEXP fd)
