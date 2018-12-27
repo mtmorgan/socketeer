@@ -1,4 +1,3 @@
-
 devtools::load_all()
 
 echo_client <- function(path)
@@ -23,16 +22,16 @@ res <- integer(n * k)
 system.time({
 for (i in seq_len(size(srv) * k)) {
     if (i <= size(srv)) {
-        send(srv, i, value)
+        send_to(srv, i, value)
     } else {
-        res0 <- recv(srv)
+        res0 <- recv_any(srv)
         stopifnot(identical(value, res0$value))
         res[[i]] <- res0$fd
-        send(srv, res0$i, value)
+        send_to(srv, res0$i, value)
     }
 }
 for (i in seq_len(size(srv))) {
-    res0 <- recv(srv)
+    res0 <- recv_any(srv)
     stopifnot(identical(value, res0$value))
     res[[i]] <- res0$fd
 }
@@ -63,15 +62,15 @@ open(srv)
 res <- integer(n * k)
 for (i in seq_len(size(srv) * k)) {
     if (i <= size(srv)) {
-        send(srv, i, i)
+        send_to(srv, i, i)
     } else {
-        res0 <- recv(srv)
+        res0 <- recv_any(srv)
         res[[i]] <- res0$value
-        send(srv, res0$i, i)
+        send_to(srv, res0$i, i)
     }
 }
 for (i in seq_len(size(srv)))
-     res[[i]] <- recv(srv)$value
+     res[[i]] <- recv_any(srv)$value
 length(res)
 table(res)
 

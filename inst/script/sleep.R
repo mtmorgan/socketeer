@@ -1,4 +1,3 @@
-
 devtools::load_all()
 
 sleepy_client <- function(path)
@@ -22,9 +21,9 @@ open(srv)
 
 sleep <- sample(5, n, TRUE)
 for (i in seq_len(size(srv)))
-    send(srv, i, sleep[i])
+    send_to(srv, i, sleep[i])
 system.time({
-    res <- replicate(size(srv), recv(srv)$value)
+    res <- replicate(size(srv), recv_any(srv)$value)
 })
 rle(res)
 

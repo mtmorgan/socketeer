@@ -46,20 +46,3 @@ close.local_client <-
 {
     NextMethod()
 }
-
-#' @importFrom parallel mcparallel
-#' @export
-echo_client <-
-    function(path)
-{
-    mcparallel({
-        client <- open(local_client(path))
-        repeat {
-            msg <- recv(client)
-            if (identical(msg, "DONE"))
-                break
-            send(client, msg)
-        }
-        close(client)
-    }, detached = TRUE)
-}

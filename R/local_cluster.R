@@ -38,9 +38,6 @@ local_cluster <-
 .con <- function(x)
     x$con
 
-.fds <- function(x)
-    local_server_activefds(.con(x))
-
 #' @export
 size <-
     function(x)
@@ -97,35 +94,32 @@ open.local_cluster <-
 }
 
 #' @export
-send.local_cluster <-
+send_to.local_cluster <-
     function(x, i, value)
 {
     i <- as.integer(i)
-    stopifnot(
-        isup(x),
-        is_scalar_integer(i), i > 0L && i <= length(.fds(x))
-    )
+    stopifnot(isup(x), is_scalar_integer(i), i > 0L && i <= size(x))
 
-    send(.con(x), .fds(x)[[i]], value)
+    send_to(.con(x), i, value)
     invisible(x)
 }
 
 #' @export
-recv.local_cluster <-
+recv_from.local_cluster <-
+    function(x, i)
+{
+    i <- as.integer(i)
+    stopifnot(isup(x), is_scalar_integer(i), i > 0L && size(x))
+
+    recv_from(.con(x), i)
+}
+
+#' @export
+recv_any.local_cluster <-
     function(x)
 {
     stopifnot(isup(x))
-    fd <- local_server_selectfd(.con(x))
-    if (!length(fd)) {
-        stop("'recv()' timeout after ", x$timeout, " seconds")
-    }
-    fd <- fd[sample.int(length(fd), 1L)]
-
-    value <- recv(.con(x), fd)
-    structure(
-        list(i = match(fd, .fds(x)), fd = fd, value = value),
-        class = "local_cluster_recv"
-    )
+    recv_any(.con(x))
 }
 
 .recv_is_error <- function(x)
@@ -142,22 +136,11 @@ recv.local_cluster <-
         )
 }
 
-#' @export
-print.local_cluster_recv <-
-    function(x)
-{
-    cat(
-        "recv from client ", x$i, " (fd ", x$fd, "):\n",
-        sep=""
-    )
-    print(x$value)
-}
-
 .finalize_local_cluster <-
     function(x)
 {
-    for (fd in local_server_activefds(x))
-        send(x, fd, "DONE")
+    for (i in seq_len(size(x)))
+        send_to(x, i, "DONE")
 
     invisible(NULL)
 }
@@ -167,7 +150,7 @@ close.local_cluster <-
     function(x)
 {
     if (isup(x))
-        .finalize_local_cluster(.con(x))
+        .finalize_local_cluster(x)
     close(.con(x))
     invisible(x)
 }

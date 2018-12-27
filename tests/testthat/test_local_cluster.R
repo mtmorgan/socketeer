@@ -29,16 +29,16 @@ test_that("many clients work", {
             close(con)
         }, detached = TRUE)
     }
-    ## 
+    ##
     n <- 400L
     srv <- local_cluster(n, client = sleepy_client, client_id = "sleepy")
     open(srv)
     sleep <- sample(1:4 / 2, n, TRUE)
     for (i in seq_len(size(srv)))
-        send(srv, i, sleep[i])
-    res <- replicate(size(srv), recv(srv)$value)
+        send_to(srv, i, sleep[i])
+    res <- replicate(size(srv), recv_any(srv)$value)
     close(srv)
-    ## 
+    ##
     expect_identical(1:4 / 2, rle(res)$values)
     expect_identical(sort(sleep), sort(res))
 })
@@ -56,27 +56,27 @@ test_that("large-data transfer works", {
             close(con)
         }, detached = TRUE)
     }
-    ## 
+    ##
     n <- 5L; k = 10L; value <- raw(1e7); res <- integer(n * k)
     srv <- local_cluster(n, timeout = 3L, client = echo_client)
     open(srv)
     for (i in seq_len(size(srv) * k)) {
         if (i <= size(srv)) {
-            send(srv, i, value)
+            send_to(srv, i, value)
         } else {
-            res0 <- recv(srv)
+            res0 <- recv_any(srv)
             stopifnot(identical(value, res0$value))
             res[[i]] <- res0$i
-            send(srv, res0$i, value)
+            send_to(srv, res0$i, value)
         }
     }
     for (i in seq_len(size(srv))) {
-        res0 <- recv(srv)
+        res0 <- recv_any(srv)
         stopifnot(identical(value, res0$value))
         res[[i]] <- res0$i
     }
     close(srv)
-    ## 
+    ##
     expect_identical(n, length(unique(res)))
     expect_identical(n * k, sum(tabulate(res)))
 })
@@ -85,15 +85,17 @@ test_that("multiple clusters work", {
     n <- 5L
     cl1 <- open(local_cluster(n))
     cl2 <- open(local_cluster(n))
-    expect_identical(integer(0), intersect(.fds(cl1), .fds(cl2)))
+    fd1 <- local_server_activefds(.con(cl1))
+    fd2 <- local_server_activefds(.con(cl2))
+    expect_identical(integer(0), intersect(fd1, fd2))
     for (i in seq_len(n)) {
-        send(cl1, i, i)
-        send(cl2, i, i + n)
+        send_to(cl1, i, i)
+        send_to(cl2, i, i + n)
     }
-    res1 <- replicate(n, recv(cl1)$value)
-    res2 <- replicate(n, recv(cl2)$value)
+    res1 <- replicate(n, recv_any(cl1)$value)
+    res2 <- replicate(n, recv_any(cl2)$value)
     close(cl1); close(cl2)
-    ## 
+    ##
     expect_identical(seq_len(n), sort(res1))
     expect_identical(seq_len(n) + n, sort(res2))
 })

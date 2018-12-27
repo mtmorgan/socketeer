@@ -62,16 +62,38 @@ isup.local_server <-
     identical(status, "opened")
 }
 
-send.local_server <-
-    function(x, fd, value)
+send_to.local_server <-
+    function(x, i, value)
 {
+    fd <- local_server_activefds(x)[i]
     local_server_set_activefd(x, fd)
     serialize(value, x)
 }
 
-recv.local_server <-
+.recv_from_fd <-
     function(x, fd)
 {
     local_server_set_activefd(x, fd)
     unserialize(x)
+}
+
+recv_from.local_server <-
+    function(x, i)
+{
+    fd <- local_server_activefds(x)[i]
+    value <- .recv_from_fd(x, fd)
+    recv_from_class(value, i, fd)
+}
+
+recv_any.local_server <-
+    function(x)
+{
+    fd <- local_server_selectfd(x)
+    length(fd) || stop("'recv_any()' timeout")
+
+    fd <- fd[sample.int(length(fd), 1L)]
+
+    value <- .recv_from_fd(x, fd)
+    i <- match(fd, local_server_activefds(x))
+    recv_any_class(value, i, fd)
 }
