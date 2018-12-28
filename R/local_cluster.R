@@ -12,7 +12,7 @@
 #' @export
 local_cluster <-
     function(n = .local_cluster_cores(), timeout = 30L * 24L * 60L * 60L,
-             client = echo_client, client_id = "echo")
+             client = client_echo, client_id = "echo")
 {
     n <- as.integer(n)
     timeout <- as.integer(timeout)
