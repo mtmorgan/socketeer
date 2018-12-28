@@ -5,14 +5,14 @@
     if (identical(.Platform$OS.type, "windows"))
         return(1L)
 
-    cores <- max(1L, parallel::detectCores() - 2L)
+    cores <- max(1L, detectCores() - 2L)
     getOption("mc.cores", cores)
 }
 
 #' @export
 local_cluster <-
     function(n = .local_cluster_cores(), timeout = 30L * 24L * 60L * 60L,
-             client = client_echo, client_id = "echo")
+             client, client_id)
 {
     n <- as.integer(n)
     timeout <- as.integer(timeout)
@@ -20,7 +20,8 @@ local_cluster <-
         is_scalar_integer(n),
         n > 0L && n < 1000L,
         is_scalar_integer(timeout),
-        timeout >= 0L
+        timeout >= 0L,
+        is_scalar_character(client_id)
     )
 
     fields <- list(
@@ -136,7 +137,7 @@ recv_any.local_cluster <-
         )
 }
 
-.finalize_local_cluster <-
+finalize.local_cluster <-
     function(x)
 {
     for (i in seq_len(size(x)))
@@ -150,7 +151,7 @@ close.local_cluster <-
     function(x)
 {
     if (isup(x))
-        .finalize_local_cluster(x)
+        finalize(x)
     close(.con(x))
     invisible(x)
 }

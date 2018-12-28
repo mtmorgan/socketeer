@@ -16,9 +16,16 @@ recv_any_class <-
 }
 
 #' @export
+value.recv_from <- function(x)
+    x$value
+
+#' @export
 print.recv_from <-
     function(x)
 {
-    cat("recv from client ", x$i, " (fd ", x$fd, "):\n", sep="")
-    print(x$value)
+    cat(
+        "recv_from `value()` (client ", x$i, ", fd ", x$fd, "):\n",
+        sep=""
+    )
+    print(value(x))
 }

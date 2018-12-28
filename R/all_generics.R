@@ -22,6 +22,9 @@ recv_any <- function(x)
 send_to <- function(x, i, value)
     UseMethod("send_to")
 
+finalize <- function(x)
+    UseMethod("finalize")
+
 ##
 ## client
 ##
@@ -35,3 +38,17 @@ send <- function(x, value)
     UseMethod("send")
 
 ## base::close(con, ...)
+
+##
+## other
+##
+
+#' @export
+value <- function(x)
+    UseMethod("value")
+
+#' @export
+value.default <- function(x) x
+
+#' @export
+value.list <- function(x) lapply(x, value)
