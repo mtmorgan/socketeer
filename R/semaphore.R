@@ -69,6 +69,7 @@ semaphore_loop <-
     }
 }
 
+#' @importFrom parallel mcparallel
 semaphore_client <-
     function(path)
 {
