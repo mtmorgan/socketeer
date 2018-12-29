@@ -36,7 +36,8 @@ recv.local_client <-
 send.local_client <-
     function(x, value)
 {
-    serialize(value, x)
+    ## .Internal(serializeb(value, x, FALSE, NULL, NULL)) # 40% faster
+    serialize(value, x, xdr = FALSE)
     invisible(x)
 }
 

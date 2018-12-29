@@ -51,6 +51,7 @@ local_server_set_activefd <-
         is(srv, "local_server"),
         is_scalar_integer(fd)
     )
+
     srv <- .Call(.connection_server_set_activefd, srv, fd)
     invisible(srv)
 }
@@ -67,7 +68,8 @@ send_to.local_server <-
 {
     fd <- local_server_activefds(x)[i]
     local_server_set_activefd(x, fd)
-    serialize(value, x)
+    ## .Internal(serializeb(value, x, FALSE, NULL, NULL)) # 40% faster
+    serialize(value, x, xdr = FALSE)
 }
 
 .recv_from_fd <-
