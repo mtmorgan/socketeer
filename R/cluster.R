@@ -43,7 +43,7 @@ recv_any.cluster <-
 finalize.cluster <-
     function(x)
 {
-    for (i in seq_len(size(x)))
+    for (i in seq_along(x))
         send_to(x, i, DONE_SEMAPHORE)
     invisible(NULL)
 }

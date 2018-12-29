@@ -40,7 +40,7 @@ local_cluster <-
     x$con
 
 #' @export
-size <-
+length.local_cluster <-
     function(x)
 {
     stopifnot(is(x, "local_cluster"))
@@ -65,7 +65,7 @@ print.local_cluster <-
         "class: ", class(x)[1], "\n",
         "client_id: ", x$client_id, "\n",
         "timeout: ", x$timeout, " seconds\n",
-        "size(): ", size(x), "\n",
+        "length(): ", length(x), "\n",
         "isup(): ", isup(x), "\n",
         sep = ""
     )
@@ -99,7 +99,7 @@ send_to.local_cluster <-
     function(x, i, value)
 {
     i <- as.integer(i)
-    stopifnot(isup(x), is_scalar_integer(i), i > 0L && i <= size(x))
+    stopifnot(isup(x), is_scalar_integer(i), i > 0L && i <= length(x))
 
     send_to(.con(x), i, value)
     invisible(x)
@@ -110,7 +110,7 @@ recv_from.local_cluster <-
     function(x, i)
 {
     i <- as.integer(i)
-    stopifnot(isup(x), is_scalar_integer(i), i > 0L && size(x))
+    stopifnot(isup(x), is_scalar_integer(i), i > 0L && length(x))
 
     recv_from(.con(x), i)
 }
@@ -140,7 +140,7 @@ recv_any.local_cluster <-
 finalize.local_cluster <-
     function(x)
 {
-    for (i in seq_len(size(x)))
+    for (i in seq_along(x))
         send_to(x, i, "DONE")
 
     invisible(NULL)
