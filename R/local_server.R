@@ -64,9 +64,9 @@ isup.local_server <-
 }
 
 send_to.local_server <-
-    function(x, i, value)
+    function(x, node, value)
 {
-    fd <- local_server_activefds(x)[i]
+    fd <- local_server_activefds(x)[node]
     local_server_set_activefd(x, fd)
     ## .Internal(serializeb(value, x, FALSE, NULL, NULL)) # 40% faster
     serialize(value, x, xdr = FALSE)
@@ -80,11 +80,11 @@ send_to.local_server <-
 }
 
 recv_from.local_server <-
-    function(x, i)
+    function(x, node)
 {
-    fd <- local_server_activefds(x)[i]
+    fd <- local_server_activefds(x)[node]
     value <- .recv_from_fd(x, fd)
-    recv_from_class(value, i, fd)
+    recv_from_class(value, node, fd)
 }
 
 recv_any.local_server <-
@@ -96,6 +96,6 @@ recv_any.local_server <-
     fd <- fd[sample.int(length(fd), 1L)]
 
     value <- .recv_from_fd(x, fd)
-    i <- match(fd, local_server_activefds(x))
-    recv_any_class(value, i, fd)
+    node <- match(fd, local_server_activefds(x))
+    recv_any_class(value, node, fd)
 }

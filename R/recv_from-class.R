@@ -1,16 +1,16 @@
 recv_from_class <-
-    function(value, i, fd)
+    function(value, node, fd)
 {
     structure(
-        list(value = value, i = i, fd = fd),
+        list(value = value, node = node, fd = fd),
         class = "recv_from"
     )
 }
 
 recv_any_class <-
-    function(value, i, fd)
+    function(value, node, fd)
 {
-    result <- recv_from_class(value, i, fd)
+    result <- recv_from_class(value, node, fd)
     class(result) <- c("recv_any", class(result))
     result
 }
@@ -24,8 +24,8 @@ print.recv_from <-
     function(x)
 {
     cat(
-        "recv_from `value()` (client ", x$i, ", fd ", x$fd, "):\n",
-        sep=""
+        "recv_from `value()` (client ", x$node, ", fd ", x$fd, "):\n",
+        sep = ""
     )
     print(value(x))
 }

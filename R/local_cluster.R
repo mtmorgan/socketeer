@@ -28,7 +28,7 @@ local_cluster <-
         con = NULL, n = n, timeout = timeout,
         client = client, client_id = client_id
     )
-    env <- new.env(parent=emptyenv())
+    env <- new.env(parent = emptyenv())
     ## reg.finalizer(env, close.local_cluster, TRUE)
     structure(
         list2env(fields, env),
@@ -81,14 +81,14 @@ open.local_cluster <-
     n <- con$n
     timeout <- con$timeout
 
-    con$con <- local_server(path, timeout=timeout, backlog = min(n, 128L))
+    con$con <- local_server(path, timeout = timeout, backlog = min(n, 128L))
     open(.con(con), "w+b")
 
     while (n > 0L) {
         n0 <- min(n, 128L)              # maximum backlog 128
         n <- n - n0
-        replicate(n0, con$client(path), simplify=FALSE)
-        replicate(n0, local_server_accept(.con(con)), simplify=FALSE)
+        replicate(n0, con$client(path), simplify = FALSE)
+        replicate(n0, local_server_accept(.con(con)), simplify = FALSE)
     }
 
     invisible(con)
@@ -96,23 +96,23 @@ open.local_cluster <-
 
 #' @export
 send_to.local_cluster <-
-    function(x, i, value)
+    function(x, node, value)
 {
-    i <- as.integer(i)
-    stopifnot(isup(x), is_scalar_integer(i), i > 0L && i <= length(x))
+    node <- as.integer(node)
+    stopifnot(isup(x), is_scalar_integer(node), node > 0L && node <= length(x))
 
-    send_to(.con(x), i, value)
+    send_to(.con(x), node, value)
     invisible(x)
 }
 
 #' @export
 recv_from.local_cluster <-
-    function(x, i)
+    function(x, node)
 {
-    i <- as.integer(i)
-    stopifnot(isup(x), is_scalar_integer(i), i > 0L && length(x))
+    node <- as.integer(node)
+    stopifnot(isup(x), is_scalar_integer(node), node > 0L && length(x))
 
-    recv_from(.con(x), i)
+    recv_from(.con(x), node)
 }
 
 #' @export
@@ -140,8 +140,9 @@ recv_any.local_cluster <-
 finalize.local_cluster <-
     function(x)
 {
-    for (i in seq_along(x))
-        send_to(x, i, "DONE")
+    for (node in seq_along(x))
+        send_to(x, node, "DONE")
+    close(.con(x))
 
     invisible(NULL)
 }
@@ -152,6 +153,5 @@ close.local_cluster <-
 {
     if (isup(x))
         finalize(x)
-    close(.con(x))
     invisible(x)
 }

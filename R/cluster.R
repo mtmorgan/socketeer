@@ -11,7 +11,7 @@ cluster <-
 
 #' @export
 send_to.cluster <-
-    function(x, i, value)
+    function(x, node, value)
 {
     value <- eval_semaphore(value)
     NextMethod()
@@ -26,7 +26,7 @@ recv_unpack <-
 
 #' @export
 recv_from.cluster <-
-    function(x, i)
+    function(x, node)
 {
     result <- NextMethod()
     recv_unpack(result)
@@ -43,7 +43,7 @@ recv_any.cluster <-
 finalize.cluster <-
     function(x)
 {
-    for (i in seq_along(x))
-        send_to(x, i, DONE_SEMAPHORE)
+    for (node in seq_along(x))
+        send_to(x, node, DONE_SEMAPHORE)
     invisible(NULL)
 }

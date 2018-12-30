@@ -15,25 +15,25 @@ echo_client <- function(path)
 }
 
 n <- 10; k = 20; value <- raw(1e7)
-srv <- local_cluster(n, timeout = 3L, client = echo_client)
+srv <- local_cluster(n, timeout = 3L, client = echo_client, client_id = "echo")
 open(srv)
 
 res <- integer(n * k)
 system.time({
-for (i in seq_len(size(srv) * k)) {
-    if (i <= size(srv)) {
-        send_to(srv, i, value)
+for (node in seq_len(length(srv) * k)) {
+    if (node <= length(srv)) {
+        send_to(srv, node, value)
     } else {
         res0 <- recv_any(srv)
         stopifnot(identical(value, res0$value))
-        res[[i]] <- res0$fd
-        send_to(srv, res0$i, value)
+        res[[node]] <- res0$fd
+        send_to(srv, res0$node, value)
     }
 }
-for (i in seq_len(size(srv))) {
+for (node in seq_along(srv)) {
     res0 <- recv_any(srv)
     stopifnot(identical(value, res0$value))
-    res[[i]] <- res0$fd
+    res[[node]] <- res0$fd
 }
 })
 table(res)
@@ -60,17 +60,17 @@ srv <- local_cluster(n, timeout = 3L, client = pid_client, client_id = "pid")
 open(srv)
 
 res <- integer(n * k)
-for (i in seq_len(size(srv) * k)) {
-    if (i <= size(srv)) {
-        send_to(srv, i, i)
+for (node in seq_len(length(srv) * k)) {
+    if (node <= length(srv)) {
+        send_to(srv, node, NULL)
     } else {
         res0 <- recv_any(srv)
-        res[[i]] <- res0$value
-        send_to(srv, res0$i, i)
+        res[[node]] <- res0$value
+        send_to(srv, res0$node, NULL)
     }
 }
-for (i in seq_len(size(srv)))
-     res[[i]] <- recv_any(srv)$value
+for (node in seq_along(srv))
+     res[[node]] <- recv_any(srv)$value
 length(res)
 table(res)
 

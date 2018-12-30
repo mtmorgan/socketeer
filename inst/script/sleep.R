@@ -20,10 +20,10 @@ srv <- local_cluster(n, client = sleepy_client, client_id = "sleepy")
 open(srv)
 
 sleep <- sample(5, n, TRUE)
-for (i in seq_len(size(srv)))
-    send_to(srv, i, sleep[i])
+for (node in seq_along(srv))
+    send_to(srv, node, sleep[node])
 system.time({
-    res <- replicate(size(srv), recv_any(srv)$value)
+    res <- replicate(length(srv), recv_any(srv)$value)
 })
 rle(res)
 

@@ -11,7 +11,7 @@ isup <- function(x)
 ##
 
 #' @export
-recv_from <- function(x, i)
+recv_from <- function(x, node)
     UseMethod("recv_from")
 
 #' @export
@@ -19,7 +19,7 @@ recv_any <- function(x)
     UseMethod("recv_any")
 
 #' @export
-send_to <- function(x, i, value)
+send_to <- function(x, node, value)
     UseMethod("send_to")
 
 finalize <- function(x)
