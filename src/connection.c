@@ -3,23 +3,16 @@
 #include <Rdefines.h>
 
 #include <string.h>
-// #ifdef HAVE_ERRNO_H
 #include <errno.h>
-// #endif
-# include <unistd.h>
+#include <unistd.h>
 
 #if defined(Win32)
 #  include <winsock2.h>
 #  include <io.h>
 #else
-#  ifdef HAVE_UNISTD_H
-#    include <unistd.h>
-#  endif
 #  include <sys/socket.h>
 #  include <sys/un.h>
-#  include <netinet/in.h>
-#  include <arpa/inet.h>
-#  include <netdb.h>
+#  include <sys/select.h>
 #endif
 
 #include "connection.h"
@@ -93,13 +86,11 @@ Rboolean socketeer_local_open_server(Rconnection ptr)
 
     fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd == -1)
-        Rf_error("could not create local socket server:\n  %s",
-                 gai_strerror(fd));
+        Rf_error("could not create local socket server:\n  %s", strerror(fd));
 
     errcode = bind(fd, (const struct sockaddr *) &hints, sizeof(hints));
     if (errcode == -1)
-        Rf_error("could not bind to local socket:\n  %s",
-                 gai_strerror(errcode));
+        Rf_error("could not bind to local socket:\n  %s", strerror(errcode));
 
     struct skt *srv = (struct skt *) ptr->private;
     srv->fd = fd;
@@ -123,15 +114,14 @@ Rboolean socketeer_local_open_client(Rconnection ptr)
 
     fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd == -1) {
-        Rf_warning("could not open local socket client:\n  %s",
-                   gai_strerror(fd));
+        Rf_warning("could not open local socket client:\n  %s", strerror(fd));
         return FALSE;
     }
 
     errcode = connect(fd, (const struct sockaddr *) &hints, sizeof(hints));
     if (errcode == -1) {
         Rf_warning("could not connect open local socket:\n  %s",
-                   gai_strerror(errcode));
+                   strerror(errcode));
         return FALSE;
     }
 
@@ -255,8 +245,8 @@ SEXP connection_server_accept(SEXP con)
     Rconnection ptr = R_GetConnection(con);
     struct skt *srv = (struct skt *) ptr->private;
 
-    struct sockaddr_in sockaddr;
-    socklen_t len = sizeof(struct sockaddr_in);
+    struct sockaddr_un sockaddr;
+    socklen_t len = sizeof(struct sockaddr_un);
     int client_fd;
 
     client_fd = accept(srv->fd, (struct sockaddr *) &sockaddr, &len);
