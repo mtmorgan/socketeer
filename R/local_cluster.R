@@ -39,6 +39,12 @@ local_cluster <-
 .con <- function(x)
     x$con
 
+`.con<-` <-
+    function(x, value)
+{
+    x$con <- value
+}
+
 #' @export
 length.local_cluster <-
     function(x)
@@ -140,11 +146,8 @@ recv_any.local_cluster <-
 finalize.local_cluster <-
     function(x)
 {
-    for (node in seq_along(x))
-        send_to(x, node, "DONE")
     close(.con(x))
-
-    invisible(NULL)
+    .con(x) <- NULL
 }
 
 #' @export
