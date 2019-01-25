@@ -11,7 +11,7 @@ Description: This package is a simple implementation of local
     send(), recv().
 License: Artistic-2.0
 Depends: R (>= 3.3.0)
-Imports: methods
+Imports: methods, BiocParallel
 Suggests: testthat
 Encoding: UTF-8
 RoxygenNote: 6.1.1
