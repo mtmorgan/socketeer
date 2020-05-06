@@ -79,7 +79,7 @@ print.local_cluster <-
 
 #' @export
 open.local_cluster <-
-    function(con)
+    function(con, ...)
 {
     stopifnot(!isup(con))
 
@@ -152,9 +152,9 @@ finalize.local_cluster <-
 
 #' @export
 close.local_cluster <-
-    function(x)
+    function(con, ...)
 {
-    if (isup(x))
-        finalize(x)
-    invisible(x)
+    if (isup(con))
+        finalize(con)
+    invisible(con)
 }

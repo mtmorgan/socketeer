@@ -19,7 +19,7 @@ local_client <-
 
 #' @export
 open.local_client <-
-    function(con)
+    function(con, ...)
 {
     NextMethod(mode = "w+b")
     invisible(con)

@@ -21,7 +21,7 @@ value.recv_from <- function(x)
 
 #' @export
 print.recv_from <-
-    function(x)
+    function(x, ...)
 {
     cat(
         "recv_from `value()` (client ", x$node, ", fd ", x$fd, "):\n",

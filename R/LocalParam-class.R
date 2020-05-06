@@ -4,6 +4,15 @@ setOldClass("local_cluster")
 
 setOldClass("local_client")
 
+#' @importClassesFrom BiocParallel BiocParallelParam
+#'
+#' @importFrom BiocParallel .BiocParallelParam_prototype .recv .send
+#'     .close .send_to .recv_any .bpworker_impl .prototype_update
+#'     .error_worker_comm .bpstart_impl .bpstop_impl bpschedule
+#'     bpbackend bpisup bpstart bpstop
+#'
+#' @importFrom methods new is
+
 .LocalParam <- setRefClass(
     "LocalParam",
     fields = list(
