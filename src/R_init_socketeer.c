@@ -18,6 +18,7 @@ static const R_CallMethodDef callMethods[] = {
 void R_init_socketeer(DllInfo *info)
 {
     R_registerRoutines(info, NULL, callMethods, NULL, NULL);
+    R_useDynamicSymbols(info, TRUE);
 }
 
 void R_unload_socketeer(DllInfo *info)
